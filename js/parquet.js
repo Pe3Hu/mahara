@@ -1,7 +1,11 @@
 class parquet{
   constructor( index, vertexs, board ){
     this.const = {
-      index: index
+      index: index,
+      center: null
+    };
+    this.flag = {
+      border: true
     };
     this.array = {
       vertex: vertexs,
@@ -14,11 +18,25 @@ class parquet{
       neighbours: {}
     };
 
-    this.init();
+    this.set_center();
   }
 
-  init(){
+  set_center(){
+    let x = 0;
+    let y = 0;
 
+    for( let index of this.array.vertex ){
+      let vertex = this.data.board.array.vertex[index];
+      x += vertex.x / this.array.vertex.length;
+      y += vertex.y / this.array.vertex.length;
+    }
+
+
+    this.const.center = new THREE.Vector3(
+      x,
+      y,
+      0
+    );
   }
 
   set_hue( level ){

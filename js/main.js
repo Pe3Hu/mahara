@@ -1,8 +1,4 @@
-const COLOR_MAX = 360;
-const COLOR_BG = COLOR_MAX / 2;
-const HIVE_RADIUS = 100;
-const DRONE_RADIUS = 10;
-const SOURCE_RADIUS = 50;
+const CONST_A = 24;
 
 let MAX_DIST;
 let WORKSPACE;
@@ -16,6 +12,7 @@ function init(){
 
   window.addEventListener( 'resize', onWindowResize );
   document.addEventListener( 'pointermove', onPointerMove );
+  document.addEventListener( 'keydown', onDocumentKeyDown );
 }
 
 function animate() {
@@ -37,3 +34,16 @@ function onPointerMove( event ) {
   GAME_BOARD.data.pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
   GAME_BOARD.data.pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
 }
+
+function onDocumentKeyDown( event ) {
+    var keyCode = event.which;
+
+    switch ( keyCode ) {
+      case 65:
+        GAME_BOARD.shift_paint_level( -1 );
+        break;
+      case 68:
+        GAME_BOARD.shift_paint_level( 1 );
+        break;
+    }
+};

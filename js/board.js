@@ -1,10 +1,11 @@
 class board{
   constructor (){
     this.const = {
-      workspace_size: 500,
-      a: 35,
-      cols: 2,
-      rows: 4,
+      workspace_size_x: 1024,//CONST_A * 50,
+      workspace_size_y: 512,//CONST_A * 25,
+      a: 1,
+      cols: 10,
+      rows: 26,
       cluster_size_max: 6,
       cluster_size_min: 3
     };
@@ -13,13 +14,15 @@ class board{
         vertex: 0,
         parquet: 0,
         cluster: 0,
-        cluster_level: 0
+        region: 0,
+        region_level: 0
       },
       current: {
         parquet_cluster: {
           x: 0,
           y: 0
-        }
+        },
+        paint_level: 0
       }
     }
     this.array = {
@@ -28,7 +31,9 @@ class board{
       row_size: [],
       row_first_vertex: [],
       gate: [],
-      cluster: []
+      cluster: [],
+      region: [],
+      region_index_shift: [ 0 ]
     };
     this.data = {
       renderer: null,
@@ -50,17 +55,25 @@ class board{
   }
 
   init() {
-    WORKSPACE = new THREE.Vector3(
-      this.const.workspace_size,
-      this.const.workspace_size,
-      this.const.workspace_size
-    );
-    MAX_DIST = Math.sqrt( Math.pow( this.const.workspace_size * 2, 2 ) + Math.pow( this.const.workspace_size * 2, 2 ) );
+    this.init_main();
+    this.init_geometrys();
+    this.init_gates();
+    this.init_first_regions_level();
+    //this.init_ciclres();
+  }
 
-    this.data.camera = new THREE.PerspectiveCamera( this.const.workspace_size, window.innerWidth / window.innerHeight, 1, 10000 );
+  init_main(){
+    WORKSPACE = new THREE.Vector3(
+      this.const.workspace_size_x,
+      this.const.workspace_size_y,
+      0
+    );
+    MAX_DIST = Math.sqrt( Math.pow( WORKSPACE.x * 2, 2 ) + Math.pow( WORKSPACE.y * 2, 2 ) );
+
+    this.data.camera = new THREE.PerspectiveCamera( WORKSPACE.x + WORKSPACE.y, window.innerWidth / window.innerHeight, 1, 10000 );
     this.data.camera.position.x = 0;
     this.data.camera.position.y = 0;
-    this.data.camera.position.z = -this.const.workspace_size * 0.4;
+    this.data.camera.position.z = -0.36 * ( WORKSPACE.x + WORKSPACE.y );
     this.data.camera.lookAt( new THREE.Vector3( 0, 0, 0 ) );
 
     this.data.scene = new THREE.Scene();
@@ -70,12 +83,13 @@ class board{
     });
 
     let points = [];
-    let r = this.const.workspace_size;
-    points.push( new THREE.Vector3( -r, -r, 0 ) );
-    points.push( new THREE.Vector3( -r, r, 0 ) );
-    points.push( new THREE.Vector3( r, r, 0 ) );
-    points.push( new THREE.Vector3( r, -r, 0 ) );
-    points.push( new THREE.Vector3( -r, -r, 0 ) );
+    let x = WORKSPACE.x;
+    let y = WORKSPACE.y;
+    points.push( new THREE.Vector3( -x, -y, -1 ) );
+    points.push( new THREE.Vector3( -x, y, -1 ) );
+    points.push( new THREE.Vector3( x, y, -1 ) );
+    points.push( new THREE.Vector3( x, -y, -1 ) );
+    points.push( new THREE.Vector3( -x, -y, -1 ) );
 
     this.data.geometry.borders_line = new THREE.BufferGeometry().setFromPoints( points );
     this.data.borders_line = new THREE.Line( this.data.geometry.borders_line, material );
@@ -99,11 +113,6 @@ class board{
 		this.data.pointer = new THREE.Vector2();
 
     this.data.scene.add( new THREE.AmbientLight( 0xffffff ) );
-
-    this.init_geometrys();
-    this.init_gates();
-    this.init_regions();
-    //this.init_ciclres();
   }
 
   init_geometrys(){
@@ -125,8 +134,6 @@ class board{
 		const color = new THREE.Color();
 
     for ( let parquet of this.array.parquet ){
-      parquet.set_hue();
-
       let shifted_index = parquet.const.index * 4 * 9;
 
       for ( let j = 1; j < parquet.array.vertex.length - 2; j++ ){
@@ -335,10 +342,460 @@ class board{
     console.log( 'percentage is', percentage )
   }
 
+  init_gates(){
+    for( let parquet of this.array.parquet ){
+      let gates = [];
+
+      for ( let l = 0; l < parquet.array.vertex.length - 1; l++ ){
+        let ll = ( l + 1 ) % parquet.array.vertex.length;
+
+        let vertex_indexs = [
+          parquet.array.vertex[l],
+          parquet.array.vertex[ll]
+        ];
+
+        let flag = false;
+        let already_index = null;
+
+        for( let i = 0; i < this.array.gate.length; i++ )
+          if( !flag ){
+            let gate = this.array.gate[i];
+            flag = flag || ( gate[0] == vertex_indexs[0] && gate[1] == vertex_indexs[1] );
+            flag = flag || ( gate[0] == vertex_indexs[1] && gate[1] == vertex_indexs[0] );
+
+            if( flag )
+              gates.push( i );
+          }
+
+        if( !flag ){
+          gates.push( this.array.gate.length );
+          this.array.gate.push( vertex_indexs );
+        }
+      }
+
+      parquet.array.gate = gates;
+    }
+
+    for( let i = 0; i < this.array.parquet.length - 1; i++ )
+      for( let j = i + 1; j < this.array.parquet.length; j++ ){
+        let gate_index = this.check_joint_gate( [
+          this.array.parquet[i],
+          this.array.parquet[j]
+        ] );
+
+        if( gate_index != -1 ){
+          this.array.parquet[i].data.neighbours[gate_index] = j;
+          this.array.parquet[j].data.neighbours[gate_index] = i;
+        }
+      }
+  }
+
+  init_first_regions_level(){
+    this.array.region.push( [] );
+    let regions = this.array.region[this.var.index.region_level];
+    let parquets = this.array.parquet;
+
+    for( let parquet of this.array.parquet ){
+      regions.push( new region( this.var.index.region, this.var.index.region_level, this, [ parquet.const.index ] ) )
+      this.var.index.region++;
+    }
+
+    this.array.region_index_shift.push( this.var.index.region );
+
+    for( let region of regions )
+      region.set_neighbours();
+
+    let min_cluster_count = this.const.cluster_size_min * ( this.const.cluster_size_min + 1 ) ;
+    while( this.array.region[this.var.index.region_level].length >= min_cluster_count )
+      this.init_next_regions();
+
+    if( this.array.region[this.var.index.region_level].length >= this.const.cluster_size_min * this.const.cluster_size_min ){
+      this.const.cluster_size_max = this.const.cluster_size_min + 1;
+      this.init_next_regions();
+    }
+
+    console.log( this.array.region[this.var.index.region_level - 1].length, this.array.region[this.var.index.region_level].length )
+
+    this.var.current.paint_level = 2;
+    this.paint_regions();
+  }
+
+  init_next_regions(){
+    //
+    this.array.cluster = [];
+    let clusters = this.array.cluster;
+    let regions = this.array.region[this.var.index.region_level];
+    let free_regions_not_const_index = [];
+    let single_regions_not_const_index = [];
+    let cluster_max = regions.length / 2;
+    this.var.index.cluster = 0;
+
+    //all unused regions are set
+    for( let region of regions )
+      free_regions_not_const_index.push( region.const.index );
+
+    //distribution of regions by clusters while there are free ones
+    while( free_regions_not_const_index.length > 0 && this.var.index.cluster < cluster_max ){
+      //the first element of the cluster is specified
+      let first_index = free_regions_not_const_index.splice( 0, 1 );
+      let cluster_regions_not_const_indexs = [ first_index[0] ];
+
+      let rand = Math.floor( Math.random() * ( this.const.cluster_size_max - this.const.cluster_size_min ) );
+      let cluster_size = this.const.cluster_size_min + rand;
+      let counter = 0;
+
+      //filling the remaining places in the cluster
+      while( cluster_regions_not_const_indexs.length < cluster_size && counter < cluster_size ){
+        let neighbours = [];
+        let free_region_neighbours = [];
+
+        //counting neighbours for all free parquets
+        for( let index of free_regions_not_const_index ){
+          let shifted_index = index - this.array.region_index_shift[this.var.index.region_level];
+          free_region_neighbours.push( regions[shifted_index].array.neighbour );
+        }
+
+        //compiling an array of neighbours suitable for expansion
+        for( let cluster_parquet_index of cluster_regions_not_const_indexs ){
+          let shifted_index = cluster_parquet_index - this.array.region_index_shift[this.var.index.region_level];
+          let cluster_neighbours = regions[shifted_index].array.neighbour;
+
+          for( let cluster_neighbour of cluster_neighbours ){
+            let index_free_regions_not_const_index = free_regions_not_const_index.indexOf( cluster_neighbour );
+
+            if( index_free_regions_not_const_index != -1 ){
+              let single_check = false;
+
+              //checking the pakret cut off from the surrounding
+              for( let neighbour of free_region_neighbours[index_free_regions_not_const_index] ){
+                let neighbour_index = free_regions_not_const_index.indexOf( neighbour );
+
+                if( neighbour_index != -1 )
+                  if( free_region_neighbours[neighbour_index].length == 1 )
+                    single_check = true;
+              }
+
+              if( !single_check ){
+                let index_neighbours = neighbours.indexOf( cluster_neighbour );
+
+                if( index_neighbours == -1 )
+                  neighbours.push( cluster_neighbour );
+              }
+            }
+          }
+        }
+
+        //choosing one neighbour from all possible
+        if( neighbours.length > 0 ){
+          let rand = Math.floor( Math.random() * neighbours.length )
+          cluster_regions_not_const_indexs.push( neighbours[rand] );
+
+          let index_free_regions_not_const_index = free_regions_not_const_index.indexOf( neighbours[rand] );
+          free_regions_not_const_index.splice( index_free_regions_not_const_index, 1 );
+        }
+        //end of cluster formation due to lack of options
+        else{
+          //erasing data from the parquet with the only element of the cluster
+          if( cluster_regions_not_const_indexs.length == 1 ){
+            single_regions_not_const_index.push( cluster_regions_not_const_indexs[0] )
+          }
+
+          cluster_size = cluster_regions_not_const_indexs.length;
+        }
+        counter++;
+      }
+
+      //adding a cluster of more than one parquet
+      if( cluster_regions_not_const_indexs.length > 1 ){
+        clusters.push( cluster_regions_not_const_indexs )
+        this.var.index.cluster++;
+      }
+    }
+
+    let single_regions_not_const_cluster_indexs = [];
+    let single_regions_not_const_cluster_sizes = [];
+
+    //distribution of remaining singles
+    for( let single of single_regions_not_const_index ){
+      let cluster_indexs = [];
+      let cluster_sizes = [];
+      let neighbours = [];
+      let shifted_index = single - this.array.region_index_shift[this.var.index.region_level];
+
+      let region_neighbours = regions[shifted_index].array.neighbour;
+
+      for( let region_neighbour of region_neighbours ){
+        let cluster_index = null;
+
+        for( let i = 0; i < clusters.length; i++ )
+          if( clusters[i].includes( region_neighbour ) )
+            cluster_index = i;
+
+        let index = cluster_indexs.indexOf( cluster_index );
+
+        if( index ==  -1 ){
+          cluster_indexs.push( cluster_index );
+          cluster_sizes.push( clusters[cluster_index].length );
+        }
+      }
+
+      for( let i = 0; i < clusters.length; i++ ){
+        let index = clusters[i].indexOf( single )
+
+        if( index != -1 ){
+          cluster_indexs.push( i );
+          cluster_sizes.push( clusters[i].length );
+        }
+      }
+
+      single_regions_not_const_cluster_indexs.push( cluster_indexs );
+      single_regions_not_const_cluster_sizes.push( cluster_sizes );
+    }
+
+    let options = [];
+    for( let i = 0; i < this.const.cluster_size_max; i++ )
+      options.push( {} );
+
+    for( let i = 0; i < single_regions_not_const_cluster_sizes.length; i++ )
+      for( let j = 0; j < single_regions_not_const_cluster_sizes[i].length; j++ ){
+        let keys = Object.keys( options[single_regions_not_const_cluster_sizes[i][j]] );
+        let index = keys.indexOf( single_regions_not_const_cluster_indexs[i][j].toString() );
+
+        if( index == -1 )
+          options[single_regions_not_const_cluster_sizes[i][j]][single_regions_not_const_cluster_indexs[i][j]] = [ single_regions_not_const_index[i] ];
+        else
+          options[single_regions_not_const_cluster_sizes[i][j]][single_regions_not_const_cluster_indexs[i][j]].push( single_regions_not_const_index[i] );
+      }
+
+    //joining singles to the smallest clusters
+    for( let i = 0; i < options.length; i++ )
+      for( let cluster_index in options[i] )
+        for( let j = 0; j < options[i][cluster_index].length; j++ ){
+          let index = single_regions_not_const_index.indexOf( options[i][cluster_index][j] );
+
+          if( index != -1 ){
+            clusters[cluster_index].push( options[i][cluster_index][j] );
+            single_regions_not_const_index.splice( index, 1 )
+          }
+        }
+
+    let is_null = false;
+
+    while( !is_null )
+      is_null = 0 == this.merging_small_clusters();
+
+    this.var.index.region_level++;
+    this.array.region.push( [] );
+    regions = this.array.region[this.var.index.region_level];
+
+    for( let cluster of clusters ){
+      regions.push( new region( this.var.index.region, this.var.index.region_level, this, cluster ) )
+      this.var.index.region++;
+    }
+
+    this.array.region_index_shift.push( this.var.index.region );
+
+    for( let region of regions )
+      region.set_neighbours();
+  }
+
+  merging_small_clusters(){
+    let min_neighbours = this.const.cluster_size_max;
+    let max_neighbours = 0;
+    let small_clusters = [];
+    let neighbour_clusters = [];
+    let clusters = this.array.cluster;
+    let regions = this.array.region[this.var.index.region_level];
+
+    //
+    for( let i = 0; i < clusters.length; i++ )
+      if( clusters[i].length == this.const.cluster_size_min - 1 )
+        small_clusters.push( i );
+
+    for( let small_cluster of small_clusters ){
+      let neighbours = [];
+      let sub_region_indexs = clusters[small_cluster];
+
+      for( let sub_region_index of sub_region_indexs ){
+        let shifted_index = sub_region_index - this.array.region_index_shift[this.var.index.region_level];
+
+        for( let neighbour_region of regions[shifted_index].array.neighbour ){
+          let neighbour_cluster = null;
+
+          for( let i = 0; i < clusters.length; i++ )
+            if( clusters[i].includes( neighbour_region ) )
+              neighbour_cluster = i;
+
+          let index = neighbours.indexOf( neighbour_cluster );
+
+          if( index == -1 &&
+              neighbour_cluster != small_cluster &&
+              clusters[small_cluster].length + clusters[neighbour_cluster].length < this.const.cluster_size_max )
+            neighbours.push( neighbour_cluster );
+        }
+      }
+
+
+      neighbour_clusters.push( neighbours );
+    }
+
+    for( let neighbour_cluster of neighbour_clusters ){
+      if( neighbour_cluster.length < min_neighbours && neighbour_cluster.length != 0 )
+        min_neighbours = neighbour_cluster.length;
+
+      if( neighbour_cluster.length > max_neighbours )
+        max_neighbours = neighbour_cluster.length;
+    }
+
+    if( max_neighbours == 0 )
+      return max_neighbours;
+
+    let rand_index = -1;
+
+    if( min_neighbours == 1 )
+      rand_index = 0;
+
+    //merging clusters
+    for( let i = 0; i < small_clusters.length; i++ )
+      if( neighbour_clusters[i].length > 0 ){
+
+        if( rand_index == -1 )
+          rand_index = Math.floor( Math.random() * neighbour_clusters[i].length );
+
+        this.merge_two_clusters( [
+          small_clusters[i],
+          neighbour_clusters[i][rand_index]
+        ] );
+
+        let small_cluster_index = small_clusters.indexOf( neighbour_clusters[i][rand_index] );
+
+        if( small_cluster_index != -1 ){
+          let neighbour_cluster_index = neighbour_clusters[small_cluster_index].indexOf( small_clusters[i] );
+
+          if( neighbour_cluster_index != -1 )
+             neighbour_clusters[small_cluster_index].splice( neighbour_cluster_index, 1 );
+        }
+
+        for( let j = i + 1; j < small_clusters.length; j++ ){
+          let neighbour_cluster_index = neighbour_clusters[j].indexOf( neighbour_clusters[i][rand_index] );
+
+          if( neighbour_cluster_index != -1 )
+             neighbour_clusters[j].splice( neighbour_cluster_index, 1 );
+        }
+      }
+
+    //erase empty clusters
+    for( let i = 0; i < clusters.length; i++ )
+      if( clusters[i].length == 0 )
+        clusters.splice( i, 1 );
+
+    //bug
+    let bug_flag = true;
+
+    while( bug_flag ){
+      bug_flag = false;
+
+      for( let i = 0; i < clusters.length; i++ )
+        if( clusters[i].length == 0 )
+          bug_flag = true;
+
+      if( bug_flag )
+        for( let i = 0; i < clusters.length; i++ )
+          if( clusters[i].length == 0 )
+            clusters.splice( i, 1 );
+    }
+
+    /*let arr = [];
+    for( let i = 0; i < clusters.length; i++ )
+      arr.push( [] )
+
+    for( let i = 0; i < this.array.parquet.length; i++ )
+      arr[this.array.parquet[i].array.cluster].push( i );
+    console.log( arr )*/
+
+    return min_neighbours;
+  }
+
+  merge_two_clusters( clusters ){
+    //
+    let min_cluster_index = Math.min( clusters[0], clusters[1] );
+    let max_cluster_index = Math.max( clusters[0], clusters[1] );
+
+    for( let i = 0; i < this.array.cluster[max_cluster_index].length; i++ ){
+      let parquet = this.array.cluster[max_cluster_index][i];
+      this.array.cluster[min_cluster_index].push( parquet );
+    }
+
+    this.array.cluster[max_cluster_index] = [];
+  }
+
+  distance_between_dot_and_line_by_two_points( dot, points ){
+    let x0 = dot.x;
+    let y0 = dot.y;
+    let x1 = points[0].x;
+    let y1 = points[0].y;
+    let x2 = points[1].x;
+    let y2 = points[1].y;
+    return Math.abs( ( y2 - y1 ) * x0 - ( x2 - x1 ) * y0 + x2 * y1 - y2 * x1 ) / Math.sqrt( Math.pow( ( y2 - y1 ), 2 ) + Math.pow( ( x2 - x1 ), 2 ) );
+  }
+
+  triangle_vertex_area( points ){
+    let x0 = points[0].x;
+    let y0 = points[0].y;
+    let x1 = points[1].x;
+    let y1 = points[1].y;
+    let x2 = points[2].x;
+    let y2 = points[2].y;
+
+    //Heron's formula
+    //let p = Math.sqrt( Math.pow( ( x0 - x1 ), 2 ) + Math.pow( ( x0 - x1 ), 2 ), Math.pow( ( x0 - x1 ), 2 ) );
+    return Math.abs( ( x1 - x0 ) * ( y2 - y0 ) - ( x2 - x0 ) * ( y1 - y0 ) ) / 2;
+  }
+
+  coverage_percentage( total_area, circle_radius, circle_count ){
+    let circles_area = Math.PI * Math.pow( circle_radius, 2 ) * circle_count;
+    return Math.round( circles_area / total_area * 100 ) / 100;
+  }
+
+  check_dot_in_triangle( dot, points ){
+    //
+    let flag = false;
+    let b_x = points[1].x - points[0].x;
+    let c_x = points[2].x - points[0].x;
+    let dot_x = dot.x - points[0].x;
+    let b_y = points[1].y - points[0].y;
+    let c_y = points[2].y - points[0].y;
+    let dot_y = dot.y - points[0].y;
+
+    let m = ( dot_x * b_y - b_x * dot_y ) / ( c_x * b_y - b_x * c_y );
+
+    if( m >= 0 && m <= 1 ){
+      let l = ( dot_x - m * c_x ) / b_x;
+      if( l > 0 && ( m + l ) < 1 )
+        flag = true;
+    }
+
+    return flag;
+  }
+
+  check_joint_gate( parquets ){
+    let gate_index = -1;
+
+    for( let i = 0; i < parquets[0].array.gate.length; i++ )
+      if( gate_index == -1 ){
+        let index = parquets[1].array.gate.indexOf( parquets[0].array.gate[i] )
+
+        if( index != -1 )
+          gate_index = parquets[1].array.gate[index];
+      }
+
+    return gate_index;
+  }
+
   set_parquet( start_angle, first, mirror_x, mirror_y_x, vertex_index ){
     //
-    const a = this.const.a;
-    const b = this.const.b;
+    const a = this.const.a * CONST_A;
+    const b = this.const.b * CONST_A;
     const edges = [ b, a, a, a, a, a, a ];
     const angles = [ 45, 120, 0, 30, 90, 75 ];
     const angles_orign = [ 135, 60, 0, 150, 90, 105 ];
@@ -349,7 +806,7 @@ class board{
     if( mirror_y_x < 0 )
       angle = start_angle + Math.PI;
 
-    let vector = new THREE.Vector3( this.const.workspace_size - a, this.const.workspace_size - b - a );
+    let vector = new THREE.Vector3( WORKSPACE.x * 1.4, WORKSPACE.y * 2 );
     if( this.array.vertex.length != 0 )
       vector = this.array.vertex[vertex_index].clone();
 
@@ -496,430 +953,27 @@ class board{
     this.var.current.parquet_cluster.y++;
   }
 
-  init_gates(){
-    for( let parquet of this.array.parquet ){
-      let gates = [];
+  paint_regions(){
+    let regions = this.array.region[this.var.current.paint_level];
 
-      for ( let l = 0; l < parquet.array.vertex.length - 1; l++ ){
-        let ll = ( l + 1 ) % parquet.array.vertex.length;
-
-        let vertex_indexs = [
-          parquet.array.vertex[l],
-          parquet.array.vertex[ll]
-        ];
-
-        let flag = false;
-        let already_index = null;
-
-        for( let i = 0; i < this.array.gate.length; i++ )
-          if( !flag ){
-            let gate = this.array.gate[i];
-            flag = flag || ( gate[0] == vertex_indexs[0] && gate[1] == vertex_indexs[1] );
-            flag = flag || ( gate[0] == vertex_indexs[1] && gate[1] == vertex_indexs[0] );
-
-            if( flag )
-              gates.push( i );
-          }
-
-        if( !flag ){
-          gates.push( this.array.gate.length );
-          this.array.gate.push( vertex_indexs );
-        }
-      }
-
-      parquet.array.gate = gates;
+    for( let region of regions ){
+      let hue_index = ( region.const.index - this.array.region_index_shift[this.var.current.paint_level] + regions.length ) % regions.length;
+      region.paint( hue_index, this.var.current.paint_level )
     }
-
-    for( let i = 0; i < this.array.parquet.length - 1; i++ )
-      for( let j = i + 1; j < this.array.parquet.length; j++ ){
-        let gate_index = this.check_joint_gate( [
-          this.array.parquet[i],
-          this.array.parquet[j]
-        ] );
-
-        if( gate_index != -1 ){
-          this.array.parquet[i].data.neighbours[gate_index] = j;
-          this.array.parquet[j].data.neighbours[gate_index] = i;
-        }
-      }
-
-    //console.log( this.array.parquet[25].data.neighbours )
   }
 
-  init_regions(){
-    //
-    this.array.cluster.push( [] );
-    let clusters = this.array.cluster[this.var.index.cluster_level];
-    let free_parquets = [];
-    let single_parquets = [];
-    this.var.index.cluster = 0;
-    let cluster_max = this.array.parquet.length / 2;
-
-    //all unused parquets are set
-    for( let parquet of this.array.parquet )
-      free_parquets.push( parquet.const.index );
-
-    //distribution of parquets by clusters while there are free ones
-    while( free_parquets.length > 1 && this.var.index.cluster < cluster_max ){
-      //the first element of the cluster is specified
-      let first_index = free_parquets.splice( 0, 1 );
-      let cluster_parquet_indexs = [ first_index[0] ];
-      this.array.parquet[first_index[0]].array.cluster.push( this.var.index.cluster )
-
-      let rand = Math.floor( Math.random() * ( this.const.cluster_size_max - this.const.cluster_size_min ) );
-      let cluster_size = this.const.cluster_size_min + rand;
-
-      //filling the remaining places in the cluster
-      while( cluster_parquet_indexs.length < cluster_size ){
-        let neighbours = [];
-        let free_parquet_neighbours = [];
-
-        //counting neighbours for all free parquets
-        for( let index of free_parquets ){
-          let free_neighbours = [];
-
-          let obj = this.array.parquet[index].data.neighbours;
-
-          for( let key in obj )
-            if( this.array.parquet[obj[key]].array.cluster.length == this.var.index.cluster_level )
-              free_neighbours.push( obj[key] );
-
-          free_parquet_neighbours.push( free_neighbours );
-        }
-
-        //compiling an array of neighbours suitable for expansion
-        for( let cluster_parquet_index of cluster_parquet_indexs ){
-          let obj = this.array.parquet[cluster_parquet_index].data.neighbours;
-
-          for( let key in obj ){
-            let index_free_parquets = free_parquets.indexOf( obj[key] );
-
-            if( index_free_parquets != -1 ){
-              let single_check = false;
-
-              //checking the pakret cut off from the surrounding
-              for( let neighbour of free_parquet_neighbours[index_free_parquets] ){
-                let neighbour_index = free_parquets.indexOf( neighbour );
-
-                if( neighbour_index != -1 )
-                  if( free_parquet_neighbours[neighbour_index].length == 1 )
-                    single_check = true;
-              }
-
-              if( !single_check ){
-                let index_neighbours = neighbours.indexOf( obj[key] );
-
-                if( index_neighbours == -1 )
-                  neighbours.push( obj[key] );
-              }
-            }
-          }
-        }
-
-        //choosing one neighbor from all possible
-        if( neighbours.length > 0 ){
-          let rand = Math.floor( Math.random() * neighbours.length )
-          cluster_parquet_indexs.push( neighbours[rand] );
-
-          let index_free_parquets = free_parquets.indexOf( neighbours[rand] );
-          this.array.parquet[free_parquets[index_free_parquets]].array.cluster.push( this.var.index.cluster );
-          free_parquets.splice( index_free_parquets, 1 );
-        }
-        //end of cluster formation due to lack of options
-        else{
-          //erasing data from the parquet with the only element of the cluster
-          if( cluster_parquet_indexs.length == 1 ){
-            this.array.parquet[first_index[0]].array.cluster.pop();
-            single_parquets.push( cluster_parquet_indexs[0] )
-          }
-
-          cluster_size = cluster_parquet_indexs.length;
-        }
-      }
-
-      //adding a cluster of more than one parquet
-      if( cluster_parquet_indexs.length > 1 ){
-        clusters.push( cluster_parquet_indexs )
-        this.var.index.cluster++;
-      }
-    }
-
-    let single_parquet_cluster_indexs = [];
-    let single_parquet_cluster_sizes = [];
-
-    //distribution of remaining singles
-    for( let single of single_parquets ){
-      let cluster_indexs = [];
-      let cluster_sizes = [];
-      let neighbours = [];
-      let obj = this.array.parquet[single].data.neighbours;
-
-      for( let key in obj ){
-        let cluster_index = this.array.parquet[obj[key]].array.cluster[this.var.index.cluster_level];
-
-        let index = cluster_indexs.indexOf( cluster_index );
-
-        if( index ==  -1 ){
-          cluster_indexs.push( cluster_index );
-          cluster_sizes.push( clusters[cluster_index].length );
-        }
-      }
-
-      for( let i = 0; i < clusters.length; i++ ){
-        let index = clusters[i].indexOf( single )
-
-        if( index != -1 ){
-          cluster_indexs.push( i );
-          cluster_sizes.push( clusters[i].length );
-        }
-      }
-
-      single_parquet_cluster_indexs.push( cluster_indexs );
-      single_parquet_cluster_sizes.push( cluster_sizes );
-    }
-
-    let options = [];
-    for( let i = 0; i < this.const.cluster_size_max; i++ )
-      options.push( {} );
-
-    for( let i = 0; i < single_parquet_cluster_sizes.length; i++ )
-      for( let j = 0; j < single_parquet_cluster_sizes[i].length; j++ ){
-        let keys = Object.keys( options[single_parquet_cluster_sizes[i][j]] );
-        let index = keys.indexOf( single_parquet_cluster_indexs[i][j].toString() );
-
-        if( index == -1 )
-          options[single_parquet_cluster_sizes[i][j]][single_parquet_cluster_indexs[i][j]] = [ single_parquets[i] ];
-        else
-          options[single_parquet_cluster_sizes[i][j]][single_parquet_cluster_indexs[i][j]].push( single_parquets[i] );
-      }
-
-    //joining singles to the smallest clusters
-    for( let i = 0; i < options.length; i++ )
-      for( let cluster_index in options[i] )
-        for( let j = 0; j < options[i][cluster_index].length; j++ ){
-          let index = single_parquets.indexOf( options[i][cluster_index][j] );
-
-          if( index != -1 ){
-            this.array.parquet[options[i][cluster_index][j]].array.cluster.push( cluster_index );
-            clusters[cluster_index].push( options[i][cluster_index][j] );
-            single_parquets.splice( index, 1 )
-          }
-        }
-
-    let is_null = false;
-
-    while( !is_null )
-      is_null = 0 == this.merging_small_clusters();
-
-    for( let i = 0; i < clusters.length; i++ )
-      for( let index of clusters[i] )
-        this.array.parquet[index].paint( this.var.index.cluster_level );
-
-    this.init_next_regions_level();
-  }
-
-  merging_small_clusters(){
-    let small_clusters = [];
-    let neighbor_clusters = [];
-    let clusters = this.array.cluster[this.var.index.cluster_level];
-
-    //
-    for( let i = 0; i < clusters.length; i++ )
-      if( clusters[i].length == this.const.cluster_size_min - 1 )
-        small_clusters.push( i );
-
-    //console.log( small_clusters )
-
-    for( let small_cluster of small_clusters ){
-      let neighbours = [];
-      let parquets = clusters[small_cluster];
-
-      for( let parquet of parquets )
-        for( let key in this.array.parquet[parquet].data.neighbours ){
-          let neighbour_parquet = this.array.parquet[parquet].data.neighbours[key];
-          let neighbour_cluster = this.array.parquet[neighbour_parquet].array.cluster[this.var.index.cluster_level];
-          let index = neighbours.indexOf(neighbour_cluster );
-
-          if( index == -1 &&
-              neighbour_cluster != small_cluster &&
-              clusters[small_cluster].length + clusters[neighbour_cluster].length < this.const.cluster_size_max )
-            neighbours.push( neighbour_cluster );
-        }
-
-      neighbor_clusters.push( neighbours );
-    }
-
-    //console.log( neighbor_clusters )
-
-    let min_neighbors = this.const.cluster_size_max;
-    let max_neighbors = 0;
-
-    for( let neighbor_cluster of neighbor_clusters ){
-      if( neighbor_cluster.length < min_neighbors && neighbor_cluster.length != 0 )
-        min_neighbors = neighbor_cluster.length;
-
-      if( neighbor_cluster.length > max_neighbors )
-        max_neighbors = neighbor_cluster.length;
-    }
-
-    if( max_neighbors == 0 )
-      return max_neighbors;
-
-    let rand_index = -1;
-
-    if( min_neighbors == 1 )
-      rand_index = 0;
-
-    //merging clusters
-    for( let i = 0; i < small_clusters.length; i++ )
-      if( neighbor_clusters[i].length > 0 ){
-
-        if( rand_index == -1 )
-          rand_index = Math.floor( Math.random() * neighbor_clusters[i].length );
-
-        this.merge_two_clusters( this.var.index.cluster_level, [
-          small_clusters[i],
-          neighbor_clusters[i][rand_index]
-        ] );
-
-        let small_cluster_index = small_clusters.indexOf( neighbor_clusters[i][rand_index] );
-
-        if( small_cluster_index != -1 ){
-          let neighbor_cluster_index = neighbor_clusters[small_cluster_index].indexOf( small_clusters[i] );
-
-          if( neighbor_cluster_index != -1 )
-             neighbor_clusters[small_cluster_index].splice( neighbor_cluster_index, 1 );
-        }
-
-        for( let j = i + 1; j < small_clusters.length; j++ ){
-          let neighbor_cluster_index = neighbor_clusters[j].indexOf( neighbor_clusters[i][rand_index] );
-
-          if( neighbor_cluster_index != -1 )
-             neighbor_clusters[j].splice( neighbor_cluster_index, 1 );
-        }
-      }
-
-    //erase empty clusters
-    for( let i = 0; i < clusters.length; i++ )
-      if( clusters[i].length == 0 ){
-        for( let j = i + 1; j < clusters.length; j++ )
-          for( let parquet of clusters[j] )
-            this.array.parquet[parquet].array.cluster[this.var.index.cluster_level]--;
-
-        clusters.splice( i, 1 );
-      }
-
-    //bug
-    let bug_flag = false;
-
-    for( let i = 0; i < clusters.length; i++ )
-      if( clusters[i].length == 0 )
-        bug_flag = true;
-
-    if( bug_flag )
-      for( let i = 0; i < clusters.length; i++ )
-        if( clusters[i].length == 0 ){
-          for( let j = i + 1; j < clusters.length; j++ )
-            for( let parquet of clusters[j] )
-              this.array.parquet[parquet].array.cluster[this.var.index.cluster_level]--;
-
-          clusters.splice( i, 1 );
-        }
-
-    /*let arr = [];
-    for( let i = 0; i < clusters.length; i++ )
-      arr.push( [] )
-
-    for( let i = 0; i < this.array.parquet.length; i++ )
-      arr[this.array.parquet[i].array.cluster[this.var.index.cluster_level]].push( i );
-
-    console.log( arr )*/
-    return min_neighbors;
-  }
-
-  init_next_regions_level(){
-  }
-
-  merge_two_clusters( level, clusters ){
-    //
-    let min_cluster_index = Math.min( clusters[0], clusters[1] );
-    let max_cluster_index = Math.max( clusters[0], clusters[1] );
-
-    for( let i = 0; i < this.array.cluster[level][max_cluster_index].length; i++ ){
-      let parquet = this.array.cluster[level][max_cluster_index][i];
-      this.array.parquet[parquet].array.cluster[level] = min_cluster_index;
-      this.array.cluster[level][min_cluster_index].push( parquet );
-    }
-
-    this.array.cluster[level][max_cluster_index] = [];
-  }
-
-  distance_between_dot_and_line_by_two_points( dot, points ){
-    let x0 = dot.x;
-    let y0 = dot.y;
-    let x1 = points[0].x;
-    let y1 = points[0].y;
-    let x2 = points[1].x;
-    let y2 = points[1].y;
-    return Math.abs( ( y2 - y1 ) * x0 - ( x2 - x1 ) * y0 + x2 * y1 - y2 * x1 ) / Math.sqrt( Math.pow( ( y2 - y1 ), 2 ) + Math.pow( ( x2 - x1 ), 2 ) );
-  }
-
-  triangle_vertex_area( points ){
-    let x0 = points[0].x;
-    let y0 = points[0].y;
-    let x1 = points[1].x;
-    let y1 = points[1].y;
-    let x2 = points[2].x;
-    let y2 = points[2].y;
-
-    //Heron's formula
-    //let p = Math.sqrt( Math.pow( ( x0 - x1 ), 2 ) + Math.pow( ( x0 - x1 ), 2 ), Math.pow( ( x0 - x1 ), 2 ) );
-    return Math.abs( ( x1 - x0 ) * ( y2 - y0 ) - ( x2 - x0 ) * ( y1 - y0 ) ) / 2;
-  }
-
-  coverage_percentage( total_area, circle_radius, circle_count ){
-    let circles_area = Math.PI * Math.pow( circle_radius, 2 ) * circle_count;
-    return Math.round( circles_area / total_area * 100 ) / 100;
-  }
-
-  check_dot_in_triangle( dot, points ){
-    //
-    let flag = false;
-    let b_x = points[1].x - points[0].x;
-    let c_x = points[2].x - points[0].x;
-    let dot_x = dot.x - points[0].x;
-    let b_y = points[1].y - points[0].y;
-    let c_y = points[2].y - points[0].y;
-    let dot_y = dot.y - points[0].y;
-
-    let m = ( dot_x * b_y - b_x * dot_y ) / ( c_x * b_y - b_x * c_y );
-
-    if( m >= 0 && m <= 1 ){
-      let l = ( dot_x - m * c_x ) / b_x;
-      if( l > 0 && ( m + l ) < 1 )
-        flag = true;
-    }
-
-    return flag;
-  }
-
-  check_joint_gate( parquets ){
-    let gate_index = -1;
-
-    for( let i = 0; i < parquets[0].array.gate.length; i++ )
-      if( gate_index == -1 ){
-        let index = parquets[1].array.gate.indexOf( parquets[0].array.gate[i] )
-
-        if( index != -1 )
-          gate_index = parquets[1].array.gate[index];
-      }
-
-    return gate_index;
+  shift_paint_level( shift ){
+    this.var.current.paint_level = ( shift + this.var.current.paint_level + this.array.region.length ) % this.array.region.length;
+    console.log( this.var.current.paint_level )
+    this.paint_regions();
   }
 
   render() {
     //
     this.data.raycaster.setFromCamera( this.data.pointer, this.data.camera );
+
+    this.data.geometry.map.attributes.color.needsUpdate = true;
+    //console.log( this.data.map )
 
     const intersects = this.data.raycaster.intersectObject( this.data.map );
 
