@@ -5,8 +5,19 @@ class parquet{
       center: null
     };
     this.flag = {
-      border: true
+      in_workspace: false,
+      on_border: false,
+      river: false,
+      mine: false,
+      pastures: false,
+      ruin: false,
+      lair: false,
+      free: true
     };
+    this.var = {
+      zone: -1,
+      warp: -1
+    }
     this.array = {
       vertex: vertexs,
       gate: [],
@@ -15,7 +26,9 @@ class parquet{
     this.data = {
       hue: null,
       board: board,
-      neighbours: {}
+      neighbours: {},
+      all_neighbours: {},
+      terrain: {}
     };
 
     this.set_center();
@@ -29,8 +42,7 @@ class parquet{
       let vertex = this.data.board.array.vertex[index];
       x += vertex.x / this.array.vertex.length;
       y += vertex.y / this.array.vertex.length;
-    }
-
+    };
 
     this.const.center = new THREE.Vector3(
       x,
@@ -49,6 +61,87 @@ class parquet{
         //console.log(  this.array.cluster, level, this.data.board.array.cluster[level].length )
         break;
     }
+  }
+
+  set_type( type ){
+    this.data.terrain.type = type;
+
+    switch ( type ) {
+      case 0:
+        this.data.terrain.name = 'wasteland';
+        break;
+      case 1:
+        this.data.terrain.name = 'borderland';
+        break;
+      case 2:
+        this.data.terrain.name = 'river';
+        break;
+      case 3:
+        this.data.terrain.name = 'warp';
+        break;
+      case 4:
+        this.data.terrain.name = 'ruin';
+        break;
+      case 5:
+        this.data.terrain.name = 'lair';
+        break;
+      case 6:
+        this.data.terrain.name = 'mine';
+        break;
+      case 7:
+        this.data.terrain.name = 'pasture';
+        break;
+    }
+  }
+
+  set_river( flag ){
+    this.flag.river = flag;
+    this.flag.free = !flag;
+  }
+
+  set_border( flag ){
+    this.flag.on_border = flag;
+    this.flag.free = !flag;
+  }
+
+  set_warp( warp ){
+    this.var.warp = warp;
+    this.flag.free = false;
+  }
+
+  set_ruin( flag ){
+    this.flag.ruin = flag;
+    this.flag.free = !flag;
+  }
+
+  set_lair( flag ){
+    this.flag.lair = flag;
+    this.flag.free = !flag;
+  }
+
+  set_mine( flag ){
+    this.flag.mine = flag;
+    this.flag.free = !flag;
+  }
+
+  set_pasture( flag ){
+    this.flag.pasture = flag;
+    this.flag.free = !flag;
+  }
+
+  check_zone_equality(){
+    let min_zone = INFINITY;
+    let max_zone = -1;
+    let all_parquets = this.data.board.array.parquet;
+
+    for( let key in this.data.neighbours ){
+    min_zone = Math.min( all_parquets[this.data.neighbours[key]].var.zone, min_zone );
+    max_zone = Math.max( all_parquets[this.data.neighbours[key]].var.zone, max_zone );
+    }
+
+    let flag = ( min_zone == this.var.zone && max_zone == this.var.zone );
+    //console.log( this.const.index, min_zone, this.var.zone, max_zone, flag )
+    return flag;
   }
 
   paint( level ){

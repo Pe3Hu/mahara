@@ -8,7 +8,6 @@ class region{
       current: {
         cluster: null
       }
-
     }
     this.array = {
       parquet: [],
@@ -16,7 +15,11 @@ class region{
       neighbour: []
     };
     this.data = {
-      hue: null,
+      color: {
+        h: null,
+        s: null,
+        l: null
+      },
       board: board
     };
 
@@ -46,13 +49,14 @@ class region{
     let neighbour_regions = [];
 
     if( this.const.level == 0 ){
-      for( let parquet of this.array.parquet )
-        if( all_parquets[parquet].flag.border ){
-          let obj = all_parquets[parquet].data.neighbours;
+      for( let parquet of this.array.parquet ){
+        let obj = all_parquets[parquet].data.neighbours;
 
-          for( let key in obj )
-            neighbour_regions.push( all_parquets[obj[key]].const.index );
-        }
+        for( let key in obj )
+          for( let region of regions )
+            if( region.array.parquet.includes( all_parquets[obj[key]].const.index ) )
+              neighbour_regions.push( region.const.index );
+      }
     }
     else
       for( let sub_region_index of this.array.region ){
@@ -78,21 +82,56 @@ class region{
     this.array.neighbour = neighbour_regions;
   }
 
-  set_hue( index, level ){
-    this.data.hue = index / this.data.board.array.region[level].length;
-  }
-
   paint( index, level ){
-    this.set_hue( index, level );
+    let all_parquets = this.data.board.array.parquet;
+    if( level != -1 ){
+      this.data.color.h = index / this.data.board.array.region[level].length;
+      this.data.color.s = 1;
+      this.data.color.l = 0.5;
+    }
+    else{
+      this.data.color.h = 0;
+      this.data.color.s = 0;
+      this.data.color.l = 2 / 3;
+    }
     let colors = this.data.board.data.map.geometry.attributes.color.array;
 
     for( let parquet of this.array.parquet ){
       let parquet_triangle_count = 9 * 4;
-      let start_index = this.data.board.array.parquet[parquet].const.index * parquet_triangle_count;
+      let start_index = all_parquets[parquet].const.index * parquet_triangle_count;
       const color = new THREE.Color();
 
+      this.data.color.s = 1;
+      this.data.color.l = 0.5;
+
+      switch ( all_parquets[parquet].data.terrain.name ) {
+        case 'wasteland':
+          this.data.color.h = 0;
+          this.data.color.s = 0;
+          this.data.color.l = 0.5;
+          break;
+        case 'borderland':
+          this.data.color.h = 0.9;
+          break;
+        case 'river':
+          this.data.color.h = 0.5;
+          break;
+        case 'warp':
+          this.data.color.h = 0.8;
+          break;
+        case 'ruin':
+          this.data.color.h = 0.65;
+          break;
+        case 'mine':
+          this.data.color.h = 0.15;
+          break;
+        case 'pasture':
+          this.data.color.h = 0.3;
+          break;
+      };
+
       for( let i = start_index; i < start_index + parquet_triangle_count; i += 9 ){
-        color.setHSL( this.data.hue, 1, 0.5 );
+        color.setHSL( this.data.color.h, this.data.color.s, this.data.color.l );
 
         colors[ i ] = color.r;
         colors[ i + 1 ] = color.g;

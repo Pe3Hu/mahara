@@ -1,4 +1,5 @@
-const CONST_A = 24;
+const CONST_A = 32;
+const INFINITY = 999999;
 
 let MAX_DIST;
 let WORKSPACE;
