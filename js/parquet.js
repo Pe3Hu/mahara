@@ -64,11 +64,13 @@ class parquet{
   }
 
   set_type( type ){
+    this.flag.free = false;
     this.data.terrain.type = type;
 
     switch ( type ) {
       case 0:
         this.data.terrain.name = 'wasteland';
+        this.flag.free = true;
         break;
       case 1:
         this.data.terrain.name = 'borderland';

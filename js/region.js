@@ -111,22 +111,27 @@ class region{
           this.data.color.l = 0.5;
           break;
         case 'borderland':
-          this.data.color.h = 0.9;
+          this.data.color.h = 280/360;
           break;
         case 'river':
-          this.data.color.h = 0.5;
+          this.data.color.h = 215/360;
           break;
         case 'warp':
-          this.data.color.h = 0.8;
+          this.data.color.h = 360;
           break;
         case 'ruin':
-          this.data.color.h = 0.65;
+          this.data.color.h = 20/360;
+          break;
+        case 'lair':
+          this.data.color.h = 30/360;
+          this.data.color.s = 0.25;
+          this.data.color.l = 0.25;
           break;
         case 'mine':
-          this.data.color.h = 0.15;
+          this.data.color.h = 50/360;
           break;
         case 'pasture':
-          this.data.color.h = 0.3;
+          this.data.color.h = 110/360;
           break;
       };
 

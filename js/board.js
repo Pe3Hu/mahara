@@ -62,12 +62,6 @@ class board{
     this.init_gates();
     this.init_first_regions_level();
     this.init_river();
-    /*this.init_warps();
-    this.init_ruins();
-    this.init_lairs();
-    this.init_mines();
-    this.init_pastures();*/
-
     this.init_terrains();
     //this.init_ciclres();
     this.init_paint();
@@ -509,7 +503,9 @@ class board{
         for( let key in obj )
           flag = flag || !this.array.parquet[obj[key]].flag.in_workspace;
 
-        parquet.set_border( flag );
+        //parquet.set_border( flag );
+        if( flag )
+          parquet.set_type( 1 );
       }
 
     this.array.region.push( [] );
@@ -720,12 +716,12 @@ class board{
     let options = [];
 
     for( let parquet of this.array.parquet )
-      if( parquet.flag.on_border )
+      if( parquet.data.terrain.name == 'borderland' )
         options.push( parquet.const.index );
 
     let rand = Math.floor( Math.random() * options.length );
     this.var.current.river = options[rand];
-    this.array.parquet[this.var.current.river].set_river( true );
+    this.array.parquet[this.var.current.river].set_type( 2 );
     let river_mouth = new THREE.Vector3(
       -this.array.parquet[this.var.current.river].const.center.x,
       -this.array.parquet[this.var.current.river].const.center.y,
@@ -761,77 +757,25 @@ class board{
 
   init_terrains(){
     this.set_zones();
-    let zones = [ 6, 4, 3, 2, 1 ];
-    let types = [ 3, 4, 5, 6, 7 ];
+    let zones = [ 6, 4, 3, 2, 1, 0 ];
+    let types = [ 3, 4, 5, 6, 7, 0 ];
 
-    for( let i = 0; i < zones.length; i++ )
-      while( this.array.zone.length > zones[i] &&  this.array.zone[zones[i]].length > 0 ){
-        let rand = Math.floor( Math.random() * this.array.zone[zones[i]].length );
-        let index = this.array.zone[zones[i]][rand];
-        this.array.parquet[index].set_type( types[i] );
+    for( let i = 0; i < zones.length; i++ ){
+      console.log( this.array.zone );
 
-        this.set_zones();
-      }
-  }
+      if( types[i] > 0 )
+        while( this.array.zone.length > zones[i] &&  this.array.zone[zones[i]].length > 0 ){
+          let rand = Math.floor( Math.random() * this.array.zone[zones[i]].length );
+          let index = this.array.zone[zones[i]][rand];
+          this.array.parquet[index].set_type( types[i] );
 
-  init_warps(){
-
-    while( this.array.zone.length > min_warp_zone ){
-      let zone = this.array.zone.length - 2;
-      let rand = Math.floor( Math.random() * this.array.zone[zone].length );
-      let index = this.array.zone[zone][rand];
-      this.array.parquet[index].set_warp( zone );
-
-      this.set_zones()
+          this.set_zones();
+        }
+      else
+        for( let index of this.array.zone[zones[i]] )
+          this.array.parquet[index].set_type( types[i] );
     }
-  }
 
-  init_ruins(){
-    let ruin_zone = 4;
-
-    while( this.array.zone.length > ruin_zone &&  this.array.zone[ruin_zone].length > 0 ){
-      let rand = Math.floor( Math.random() * this.array.zone[ruin_zone].length );
-      let index = this.array.zone[ruin_zone][rand];
-      this.array.parquet[index].set_ruin( ruin_zone );
-
-      this.set_zones();
-    }
-  }
-
-  init_lairs(){
-    let lair_zone = 3;
-
-    while( this.array.zone.length > lair_zone &&  this.array.zone[lair_zone].length > 0 ){
-      let rand = Math.floor( Math.random() * this.array.zone[lair_zone].length );
-      let index = this.array.zone[lair_zone][rand];
-      this.array.parquet[index].set_lair( lair_zone );
-
-      this.set_zones();
-    }
-  }
-
-  init_mines(){
-    let mine_zone = 2;
-
-    while( this.array.zone.length > mine_zone &&  this.array.zone[mine_zone].length > 0 ){
-      let rand = Math.floor( Math.random() * this.array.zone[mine_zone].length );
-      let index = this.array.zone[mine_zone][rand];
-      this.array.parquet[index].set_mine( mine_zone );
-
-      this.set_zones();
-    }
-  }
-
-  init_pastures(){
-    let zone = 1;
-
-    while( this.array.zone.length > zone &&  this.array.zone[zone].length > 0 ){
-      let rand = Math.floor( Math.random() * this.array.zone[zone].length );
-      let index = this.array.zone[zone][rand];
-      this.array.parquet[index].set_pasture( zone );
-
-      this.set_zones();
-    }
   }
 
   init_paint(){
@@ -1202,7 +1146,7 @@ class board{
         next_index = 0;
 
       this.var.current.river = neighbours[next_index];
-      this.array.parquet[this.var.current.river].set_river( true );
+      this.array.parquet[this.var.current.river].set_type( 2 );
     }
 
     return neighbours.length;
