@@ -16,7 +16,9 @@ class board{
         cluster: 0,
         region: 0,
         region_level: 0,
-        river_mouth_parquet: -1
+        river_mouth_parquet: -1,
+        capability: 0,
+        forgotten: 0
       },
       current: {
         parquet_cluster: {
@@ -24,6 +26,7 @@ class board{
           y: 0
         },
         paint_level: 0,
+        paint_layer: 1,
         river: null
       }
     };
@@ -35,7 +38,9 @@ class board{
       gate: [],
       cluster: [],
       region: [],
-      region_index_shift: [ 0 ]
+      region_index_shift: [ 0 ],
+      capability: [],
+      forgotten: []
     };
     this.data = {
       renderer: null,
@@ -63,8 +68,14 @@ class board{
     this.init_first_regions_level();
     this.init_river();
     this.init_terrains();
+    this.init_hubs();
+    this.init_castles();
+    this.init_capabilitys();
+    this.init_forgottens();
     //this.init_ciclres();
     this.init_paint();
+
+    this.start_forgottens();
   }
 
   init_main(){
@@ -760,9 +771,7 @@ class board{
     let zones = [ 6, 4, 3, 2, 1, 0 ];
     let types = [ 3, 4, 5, 6, 7, 0 ];
 
-    for( let i = 0; i < zones.length; i++ ){
-      console.log( this.array.zone );
-
+    for( let i = 0; i < zones.length; i++ )
       if( types[i] > 0 )
         while( this.array.zone.length > zones[i] &&  this.array.zone[zones[i]].length > 0 ){
           let rand = Math.floor( Math.random() * this.array.zone[zones[i]].length );
@@ -774,8 +783,168 @@ class board{
       else
         for( let index of this.array.zone[zones[i]] )
           this.array.parquet[index].set_type( types[i] );
+  }
+
+  init_hubs(){
+    let wastelands = [];
+    let neighbours_resources = [];
+    let type = 8;
+
+    for( let wasteland of this.array.zone[0] ){
+      let flag = true;
+      let parquet = this.array.parquet[wasteland];
+      let resources = [];
+
+      for( let key in parquet.data.neighbours ){
+        let neighbour = this.array.parquet[parquet.data.neighbours[key]];
+        if( !neighbour.flag.free )
+          switch ( neighbour.data.terrain.name ) {
+            case 'borderland':
+            case 'river':
+            case 'warp':
+            case 'ruin':
+            case 'lair':
+            case 'hub':
+              flag = false;
+              break;
+            case 'mine':
+            case 'pasture':
+              resources.push( neighbour.const.index );
+
+              if( neighbour.var.hub != -1 )
+                flag = false;
+              break;
+          }
+      }
+
+      if( flag ){
+        wastelands.push( wasteland );
+        neighbours_resources.push( resources )
+      }
     }
 
+    let sorted_wastelands = [ [], [], [], [], [] ];
+
+    for( let i = 0; i < wastelands.length; i++ )
+      sorted_wastelands[neighbours_resources[i].length].push( wastelands[i] );
+
+    let max_index = 0;
+
+    while( max_index != 2 ){
+      //
+      for( let i = 0; i < sorted_wastelands.length; i++ )
+        if( sorted_wastelands[i].length > 0 )
+          max_index = i;
+
+      let rand = Math.floor( Math.random() * sorted_wastelands[max_index].length );
+      let parquet = sorted_wastelands[max_index][rand];
+      this.array.parquet[parquet].set_type( type );
+      sorted_wastelands[max_index].splice( rand, 1 );
+
+      for( let key in this.array.parquet[parquet].data.neighbours ){
+        let neighbour = this.array.parquet[this.array.parquet[parquet].data.neighbours[key]];
+
+        switch ( neighbour.data.terrain.name ) {
+          case 'mine':
+          case 'pasture':
+            neighbour.var.hub = parquet;
+            break;
+        }
+
+        for( let i = 0; i < sorted_wastelands.length; i++ ){
+          let index = sorted_wastelands[i].indexOf( neighbour.const.index );
+
+          if( index != -1 )
+            sorted_wastelands[i].splice( index, 1 );
+        }
+
+        for( let neighbour_key in neighbour.data.neighbours ){
+          let neighbour_neighbor = this.array.parquet[neighbour.data.neighbours[neighbour_key]];
+
+          for( let i = 0; i < sorted_wastelands.length; i++ ){
+            let index = sorted_wastelands[i].indexOf( neighbour_neighbor.const.index );
+
+            if( index != -1 )
+              sorted_wastelands[i].splice( index, 1 );
+          }
+        }
+      }
+    }
+  }
+
+  init_castles(){
+    let castle_level = 2;
+    let type = 9;
+    let counter = 0;
+
+    for( region of this.array.region[castle_level] ){
+      let options = [];
+      let bad_neighbours = [];
+
+      for( let parquet_index of region.array.parquet ){
+        let parquet = this.array.parquet[parquet_index];
+
+        if( parquet.flag.free ){
+          let bad_neighbours_counter = 0;
+
+          for( let key in parquet.data.neighbours ){
+            let neighbour = this.array.parquet[parquet.data.neighbours[key]];
+
+            if( !neighbour.flag.free )
+              switch ( neighbour.data.terrain.name ) {
+                case 'borderland':
+                case 'river':
+                case 'castle':
+                  bad_neighbours_counter++;
+                  break;
+              }
+          }
+
+          options.push( parquet_index )
+          bad_neighbours.push( bad_neighbours_counter )
+        }
+      }
+
+      let sorted_options = [ [], [], [], [], [], [], [] ];
+
+      for( let i = 0; i < options.length; i++ )
+        sorted_options[bad_neighbours[i]].push( options[i] );
+
+      let min_index = sorted_options.length;
+
+      for( let i = sorted_options.length - 1; i > -1 ; i-- )
+        if( sorted_options[i].length > 0 )
+          min_index = i;
+
+      if( min_index != sorted_options.length ){
+        let rand = Math.floor( Math.random() * sorted_options[min_index].length );
+        let parquet = sorted_options[min_index][rand];
+        this.array.parquet[parquet].set_type( type );
+        region.var.castle = parquet;
+        counter++;
+      }
+    }
+  }
+
+  init_capabilitys(){
+    let base_capabilitys = 2;
+
+    for( let i = 0; i < base_capabilitys; i++ ){
+      this.array.capability.push( new capability( this.var.index.capability, this ) );
+      this.var.index.capability++;
+    }
+  }
+
+  init_forgottens(){
+    let options = [];
+
+    for( let parquet of this.array.parquet )
+      if( parquet.data.terrain.name == 'pasture' )
+        options.push( parquet.const.index )
+
+    let rand = Math.floor( Math.random() * options.length );
+    this.array.forgotten.push( new forgotten( this.var.index.forgotten, options[rand], this ) );
+    this.var.index.forgotten++;
   }
 
   init_paint(){
@@ -783,7 +952,11 @@ class board{
     this.var.current.paint_level = this.var.index.region_level;
     this.paint_regions();
 
-    this.paint_object();
+  }
+
+  start_forgottens(){
+    for( let forgotten of this.array.forgotten )
+      forgotten.do_smthg();
   }
 
   merging_small_clusters(){
@@ -1063,11 +1236,23 @@ class board{
   }
 
   paint_regions(){
-    let regions = this.array.region[this.var.current.paint_level];
+    let regions;
+    let level;
+
+    switch ( this.var.current.paint_layer ) {
+      case 0:
+        regions = this.array.region[this.var.current.paint_level];
+        level = this.var.current.paint_level ;
+        break;
+      case 1:
+        regions = this.array.region[0];
+        level = -1;
+        break;
+    }
 
     for( let region of regions ){
       let hue_index = ( region.const.index - this.array.region_index_shift[this.var.current.paint_level] + regions.length ) % regions.length;
-      region.paint( hue_index, this.var.current.paint_level )
+      region.paint( hue_index, level );
     }
   }
 
@@ -1083,7 +1268,12 @@ class board{
 
   shift_paint_level( shift ){
     this.var.current.paint_level = ( shift + this.var.current.paint_level + this.array.region.length ) % this.array.region.length;
-    console.log( this.var.current.paint_level )
+    this.paint_regions();
+  }
+
+  shift_paint_layer( shift ){
+    let layers = 2;
+    this.var.current.paint_layer = ( shift + this.var.current.paint_layer + layers ) % layers;
     this.paint_regions();
   }
 

@@ -6,17 +6,12 @@ class parquet{
     };
     this.flag = {
       in_workspace: false,
-      on_border: false,
-      river: false,
-      mine: false,
-      pastures: false,
-      ruin: false,
-      lair: false,
       free: true
     };
     this.var = {
       zone: -1,
-      warp: -1
+      warp: -1,
+      hub: -1
     }
     this.array = {
       vertex: vertexs,
@@ -28,7 +23,8 @@ class parquet{
       board: board,
       neighbours: {},
       all_neighbours: {},
-      terrain: {}
+      terrain: {},
+      subject: new subject( this )
     };
 
     this.set_center();
@@ -58,7 +54,6 @@ class parquet{
         break;
       case 0:
         this.data.hue = this.array.cluster[level] / this.data.board.array.cluster[level].length;
-        //console.log(  this.array.cluster, level, this.data.board.array.cluster[level].length )
         break;
     }
   }
@@ -93,42 +88,13 @@ class parquet{
       case 7:
         this.data.terrain.name = 'pasture';
         break;
+      case 8:
+        this.data.terrain.name = 'hub';
+        break;
+      case 9:
+        this.data.terrain.name = 'castle';
+        break;
     }
-  }
-
-  set_river( flag ){
-    this.flag.river = flag;
-    this.flag.free = !flag;
-  }
-
-  set_border( flag ){
-    this.flag.on_border = flag;
-    this.flag.free = !flag;
-  }
-
-  set_warp( warp ){
-    this.var.warp = warp;
-    this.flag.free = false;
-  }
-
-  set_ruin( flag ){
-    this.flag.ruin = flag;
-    this.flag.free = !flag;
-  }
-
-  set_lair( flag ){
-    this.flag.lair = flag;
-    this.flag.free = !flag;
-  }
-
-  set_mine( flag ){
-    this.flag.mine = flag;
-    this.flag.free = !flag;
-  }
-
-  set_pasture( flag ){
-    this.flag.pasture = flag;
-    this.flag.free = !flag;
   }
 
   check_zone_equality(){
@@ -142,7 +108,6 @@ class parquet{
     }
 
     let flag = ( min_zone == this.var.zone && max_zone == this.var.zone );
-    //console.log( this.const.index, min_zone, this.var.zone, max_zone, flag )
     return flag;
   }
 
@@ -169,6 +134,5 @@ class parquet{
 			colors[ i + 7 ] = color.g;
 			colors[ i + 8 ] = color.b;
     }
-    //console.log( board )
   }
 }

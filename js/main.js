@@ -46,5 +46,10 @@ function onDocumentKeyDown( event ) {
       case 68:
         GAME_BOARD.shift_paint_level( 1 );
         break;
+      case 90:
+        GAME_BOARD.shift_paint_layer( -1 );
+        break;
+      case 67:
+        GAME_BOARD.shift_paint_layer( 1 );
     }
 };

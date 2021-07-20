@@ -7,7 +7,8 @@ class region{
     this.var = {
       current: {
         cluster: null
-      }
+      },
+      castle: -1
     }
     this.array = {
       parquet: [],
@@ -84,16 +85,6 @@ class region{
 
   paint( index, level ){
     let all_parquets = this.data.board.array.parquet;
-    if( level != -1 ){
-      this.data.color.h = index / this.data.board.array.region[level].length;
-      this.data.color.s = 1;
-      this.data.color.l = 0.5;
-    }
-    else{
-      this.data.color.h = 0;
-      this.data.color.s = 0;
-      this.data.color.l = 2 / 3;
-    }
     let colors = this.data.board.data.map.geometry.attributes.color.array;
 
     for( let parquet of this.array.parquet ){
@@ -101,41 +92,66 @@ class region{
       let start_index = all_parquets[parquet].const.index * parquet_triangle_count;
       const color = new THREE.Color();
 
-      this.data.color.s = 1;
-      this.data.color.l = 0.5;
+      if( this.data.board.var.current.paint_layer == 1 ){
+        this.data.color.s = 1;
+        this.data.color.l = 0.5;
 
-      switch ( all_parquets[parquet].data.terrain.name ) {
-        case 'wasteland':
-          this.data.color.h = 0;
-          this.data.color.s = 0;
-          this.data.color.l = 0.5;
-          break;
-        case 'borderland':
-          this.data.color.h = 280/360;
-          break;
-        case 'river':
-          this.data.color.h = 215/360;
-          break;
-        case 'warp':
-          this.data.color.h = 360;
-          break;
-        case 'ruin':
-          this.data.color.h = 20/360;
-          break;
-        case 'lair':
-          this.data.color.h = 30/360;
-          this.data.color.s = 0.25;
-          this.data.color.l = 0.25;
-          break;
-        case 'mine':
-          this.data.color.h = 50/360;
-          break;
-        case 'pasture':
-          this.data.color.h = 110/360;
-          break;
-      };
+        switch ( all_parquets[parquet].data.terrain.name ){
+          case 'wasteland':
+            this.data.color.h = 0;
+            this.data.color.s = 0;
+            this.data.color.l = 0.5;
+            break;
+          case 'borderland':
+            this.data.color.h = 280/360;
+            break;
+          case 'river':
+            this.data.color.h = 215/360;
+            break;
+          case 'warp':
+            this.data.color.h = 360;
+            break;
+          case 'ruin':
+            this.data.color.h = 180/360;
+            break;
+          case 'lair':
+            this.data.color.h = 20/360;
+            break;
+          case 'mine':
+            this.data.color.h = 50/360;
+            break;
+          case 'pasture':
+            this.data.color.h = 110/360;
+            break;
+          case 'hub':
+            this.data.color.h = 0;
+            this.data.color.s = 0;
+            this.data.color.l = 1;
+            /*this.data.color.h = 30/360;
+            this.data.color.s = 0.25;
+            this.data.color.l = 0.25;*/
+            break;
+          case 'castle':
+            this.data.color.h = 0;
+            this.data.color.s = 0;
+            this.data.color.l = 0.25;
+            break;
+        };
+      }
+
+      if( this.data.board.var.current.paint_layer == 0 ){
+        this.data.color.h = index / this.data.board.array.region[level].length;
+        this.data.color.s = 1;
+        this.data.color.l = 0.5;
+      }
 
       for( let i = start_index; i < start_index + parquet_triangle_count; i += 9 ){
+        if( this.data.board.var.current.paint_layer == 0 )
+          this.data.color.l = 0.5;
+
+        if( level == 2 && all_parquets[parquet].data.terrain.name == 'castle' && i == start_index )
+          this.data.color.l = 1;
+
         color.setHSL( this.data.color.h, this.data.color.s, this.data.color.l );
 
         colors[ i ] = color.r;
@@ -151,8 +167,5 @@ class region{
         colors[ i + 8 ] = color.b;
       }
     }
-
-
-    //console.log( board )
   }
 }
