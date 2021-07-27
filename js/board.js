@@ -30,6 +30,7 @@ class board{
         river: null
       }
     };
+    this.flag = {}
     this.array = {
       vertex: [],
       parquet: [],
@@ -53,7 +54,16 @@ class board{
         map: null
       },
       hues: {
-      }
+      },
+      second: {
+        current: 0,
+        prev: -1,
+        next: -1
+      },
+      delta_sum: 0
+    };
+    this.table = {
+      covering: {}
     };
 
     this.const.b =  Math.sqrt( 2 + Math.sqrt( 3 ) ) * this.const.a;
@@ -72,8 +82,8 @@ class board{
     this.init_castles();
     this.init_capabilitys();
     this.init_forgottens();
-    //this.init_ciclres();
     this.init_paint();
+    this.init_covering_table();
 
     this.start_forgottens();
   }
@@ -331,21 +341,90 @@ class board{
     this.var.current.parquet_cluster.y++;
   }
 
-  init_ciclres(){
-    let r = this.const.a * 0.1;
-    let vertex_index = 2;
+  init_covering_table(){
+    let parquet_index = 877;
+    let angles = [];
+    let count = 6;
+
+    for( let c_index = 0; c_index < count; c_index++ ){
+      let a_index = ( c_index - 1 + count ) % count;
+      let b_index = ( c_index + 1 ) % count;
+      let vertex_c = this.array.parquet[parquet_index].array.vertex[c_index];
+      let vertex_a = this.array.parquet[parquet_index].array.vertex[a_index];
+      let vertex_b = this.array.parquet[parquet_index].array.vertex[b_index];
+      let c_vec = this.array.vertex[vertex_c].clone();
+      let a_vec = this.array.vertex[vertex_a].clone();
+      let b_vec = this.array.vertex[vertex_b].clone();
+      a_vec.sub( c_vec );
+      b_vec.sub( c_vec );
+      let angle = Math.round( a_vec.angleTo( b_vec ) / Math.PI * 180 );
+      angles.push( angle )
+    }
+
+    this.var.MAX_R = CONST_A * 0.5;
+    this.var.step_r = this.var.MAX_R / 16;
+    this.flag.flag = false;
+
+    for( let r = this.var.step_r; r <= this.var.MAX_R; r += this.var.step_r )
+      for( let i = 0; i < angles.length; i++ )
+        if( angles[i] <= 110 )
+          this.fill_in_covering_table( parquet_index, r, i );
+
+    let sorted = [];
+    let keys = Object.keys( this.table.covering );
+    let avgs = [];
+    let copys = [];
+
+    for( let key of keys ){
+      let avg = 0;
+
+      for( let percentage of this.table.covering[key] )
+        avg += percentage / this.table.covering[key].length;
+
+      avgs.push( avg );
+      copys.push( avg )
+    }
+
+    let indexs = [];
+
+    copys.sort();
+
+    for( let i = 0; i < copys.length; i++ )
+      indexs.push( avgs.indexOf( copys[i] ) );
+
+    let first;
+    for( let i = 0; i < indexs.length; i++ ){
+      let percentages = this.table.covering[keys[indexs[i]]].sort();
+
+      if( percentages.length > 1 )
+        sorted.push( percentages );
+      else
+        first = percentages;
+    }
+
+    sorted.unshift( first );
+    this.table.covering = sorted;
+
+    console.log( this.table.covering )
+  }
+
+  fill_in_covering_table( parquet_index, r, c_index ){
+    let a = this.const.a * CONST_A;
+    let b = this.const.b * CONST_A;
     let count = 6;
     let circle_counter = 0;
 
-    let point = this.array.vertex[vertex_index].clone();
-    let a_index = ( vertex_index - 1 + count ) % count;
-    let b_index = ( vertex_index + 1 ) % count;
-    let a_vec = this.array.vertex[a_index].clone();
-    let b_vec = this.array.vertex[b_index].clone();
-
-    a_vec.sub( point );
+    let vertex_c = this.array.parquet[parquet_index].array.vertex[c_index];
+    let a_index = ( c_index - 1 + count ) % count;
+    let b_index = ( c_index + 1 ) % count;
+    let vertex_a = this.array.parquet[parquet_index].array.vertex[a_index];
+    let vertex_b = this.array.parquet[parquet_index].array.vertex[b_index];
+    let c_vec = this.array.vertex[vertex_c].clone();
+    let a_vec = this.array.vertex[vertex_a].clone();
+    let b_vec = this.array.vertex[vertex_b].clone();
+    a_vec.sub( c_vec );
     a_vec.normalize();
-    b_vec.sub( point );
+    b_vec.sub( c_vec );
     b_vec.normalize();
 
     let way = a_vec.clone();
@@ -353,17 +432,17 @@ class board{
     way.normalize();
     let l = r / Math.sin( 60 / 2 / 180 * Math.PI );
     way.multiplyScalar( l );
-    point.add( way );
+    c_vec.add( way );
 
-    let rows = Math.floor( this.const.a * 2 / ( r * 2 ) );
-    let cols = Math.floor( ( this.const.b + this.const.a ) / ( r * 2 ) );
+    let rows = Math.floor( a * 3 / ( r * 2 ) );
+    let cols = Math.floor( ( b + a ) / ( r * 2 ) );
     let vertexs = [];
 
     a_vec.multiplyScalar( 2 * r );
     b_vec.multiplyScalar( 2 * r );
 
     for( let i = 0; i < rows; i++ ){
-      let vec = point.clone();
+      let vec = c_vec.clone();
       //if( i % 2 == 0 )
         for( let j = 0; j < i; j++ ){
           vec.add( a_vec );
@@ -377,15 +456,21 @@ class board{
       }
     }
 
-    let parquet = this.array.parquet[0];
+    let parquet = this.array.parquet[parquet_index];
+    let flag = false;
+
+    if( Math.abs( r - ( this.var.MAX_R  ) ) < 0.001  && c_index == 4 && !this.flag.flag ){//1 4
+      this.flag.flag = true;
+      flag = true;
+    }
 
     for( let i = 0; i < rows; i++ ){
       for( let j = 0; j < cols; j++ ){
         let belonging_chek = false;
 
-        for ( let k = 0; k < parquet.array.vertex.length; k+= 2)
+        for ( let k = 0; k < parquet.array.vertex.length; k += 2 )
           for ( let l = 0; l < parquet.array.vertex.length - 2; l++ ){
-            let a = ( k  ) % parquet.array.vertex.length;
+            let a = k % parquet.array.vertex.length;
             let b = ( k + l + 1 ) % parquet.array.vertex.length;
             let c = ( k + l + 2 ) % parquet.array.vertex.length;
 
@@ -398,7 +483,6 @@ class board{
                   this.array.vertex[parquet.array.vertex[c]]
                 ] );
           }
-
 
         if( belonging_chek ){
           let border_check = true;
@@ -420,6 +504,7 @@ class board{
           }
 
           if( border_check ){
+            /*if( flag ){
             const geometry = new THREE.CircleGeometry( r, 400 );
             const material = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );
             const circle = new THREE.Mesh( geometry, material );
@@ -428,7 +513,7 @@ class board{
             circle.position.y = vertexs[i][j].y;
             circle.position.z = vertexs[i][j].z;
 
-            this.data.scene.add( circle );
+            this.data.scene.add( circle );}*/
             circle_counter++;
           }
         }
@@ -445,10 +530,20 @@ class board{
             this.array.vertex[parquet.array.vertex[l + 1]]
           ] );
 
-    let circle_radius = r;
+    let percentage = this.coverage_percentage( total_area, r, circle_counter );
 
-    let percentage = this.coverage_percentage( total_area, circle_radius, circle_counter );
-    console.log( 'percentage is', percentage )
+    if( percentage > 0 && percentage < 1 ){
+      let keys = Object.keys( this.table.covering );
+
+      if( !keys.includes( r.toString() ) )
+        this.table.covering[r.toString()] = [ percentage ];
+      else{
+        let index = this.table.covering[r.toString()].indexOf( percentage );
+
+        if( index == -1 )
+          this.table.covering[r.toString()].push( percentage );
+      }
+    }
   }
 
   init_gates(){
@@ -927,7 +1022,7 @@ class board{
   }
 
   init_capabilitys(){
-    let base_capabilitys = 2;
+    let base_capabilitys = 6;
 
     for( let i = 0; i < base_capabilitys; i++ ){
       this.array.capability.push( new capability( this.var.index.capability, this ) );
@@ -951,12 +1046,11 @@ class board{
     //
     this.var.current.paint_level = this.var.index.region_level;
     this.paint_regions();
-
   }
 
   start_forgottens(){
     for( let forgotten of this.array.forgotten )
-      forgotten.do_smthg();
+      forgotten.fill_to_do_list();
   }
 
   merging_small_clusters(){
@@ -1282,8 +1376,17 @@ class board{
     let neighbours = [];
 
     for( let key in current_parquet.data.neighbours )
-      if( !this.array.parquet[current_parquet.data.neighbours[key]].flag.river )
-        neighbours.push( this.array.parquet[current_parquet.data.neighbours[key]].const.index );
+      if( this.array.parquet[current_parquet.data.neighbours[key]].data.terrain.name != 'river' ){
+        let counter = 0;
+        let neighbour = this.array.parquet[current_parquet.data.neighbours[key]];
+
+        for( let key_1 in neighbour.data.neighbours )
+          if( this.array.parquet[neighbour.data.neighbours[key_1]].data.terrain.name == 'river' )
+            counter++;
+
+        if( counter < 2 )
+          neighbours.push( this.array.parquet[current_parquet.data.neighbours[key]].const.index );
+      }
 
     if( neighbours.length > 0 ){
       let next_index;
@@ -1405,9 +1508,21 @@ class board{
 			//console.log( Math.floor( intersect.faceIndex / 4 ) )
 		}
 
-    if( Math.round( this.data.clock.getElapsedTime().toFixed(2) * 100 ) % 100 == 0 ){
-    }
+    this.second_has_passed();
 
     this.data.renderer.render( this.data.scene, this.data.camera );
+  }
+
+  second_has_passed(){
+    this.data.delta_sum += this.data.clock.getDelta();
+
+    if( this.data.delta_sum >= 0.1 ){
+      this.data.delta_sum = 0;
+      this.data.second.current++;
+      //console.log( 'clock', this.data.second.current )
+
+      for( let forgotten of this.array.forgotten )
+        forgotten.start_capability();
+    }
   }
 }

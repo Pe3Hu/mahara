@@ -11,7 +11,8 @@ class capability{
       condition: []
     };
     this.data = {
-      name: null
+      name: null,
+      takes_time: 100
     };
 
     this.set_description();
@@ -26,37 +27,69 @@ class capability{
         this.data.name = 'primary inspection';
         break;
       case 2:
+        this.data.name = 'common inspection';
+        break;
+      case 3:
         this.data.name = 'passage through the gate';
+        break;
+      case 4:
+        this.data.name = 'primary mining';
+        break;
+      case 5:
+        this.data.name = 'common mining';
         break;
     }
   }
 
   used_by( who, where ){
+    let str;
+    //console.log( who, where )
+
     switch ( this.data.name ) {
       case 'preview':
-        let str = this.find_shatter( who, where, false );
-        who.data.knowledge['somewhere'][where.const.index] = [ str ];
+        str = this.find_shatter( who, where );
+        who.data.shatters['somewhere'][where.const.index.toString()] = [ str ];
+        who.add_successes( 'mapping' );
         break;
       case 'primary inspection':
-        let primary_repetitions = 4;
-        for( let i = 0; i < primary_repetitions; i++ ){
-          let str = this.find_shatter( who, where, false );
-          who.data.knowledge['somewhere'][where.const.index].push( str );
+      case 'common inspection':
+        let roll = this.roll( who, 'mapping' );
+
+        if( roll ){
+          let guaranteed_new = false;
+
+          if( this.data.name == 'primary inspection' )
+            guaranteed_new = true;
+
+          str = this.find_shatter( who, where, guaranteed_new );
+          let index = who.data.shatters['somewhere'][where.const.index.toString()].indexOf( str );
+
+          if( index == -1 )
+            who.data.shatters['somewhere'][where.const.index.toString()].push( str );
+          else
+            who.data.duplicates['somewhere'].push( str );
+
+          who.add_successes( 'mapping' );
+          break;
         }
+      case 'passage through the gate':
+        break;
+      case 'primary mining':
+      case 'common mining':
         break;
     }
 
-    console.log( who.data.knowledge['somewhere'] )
+    console.log( this.data.name )
   }
 
   find_shatter( who, where, guaranteed_new ){
     let shatters = [];
     let subject = where.data.subject;
-    let keys = Object.keys( who.data.knowledge['somewhere'] );
+    let keys = Object.keys( who.data.shatters['somewhere'] );
 
     if( guaranteed_new && keys.includes( where.const.index ) ){
       for( let shatter of subject.array.shatter )
-        if( who.data.knowledge['somewhere'][where.const.index].includes( shatter ) )
+        if( who.data.shatters['somewhere'][where.const.index].includes( shatter ) )
           shatters.push( shatter );
     }
     else
@@ -67,5 +100,14 @@ class capability{
     let str = subject.array.shatter[index] + '-' + String( subject.array.duplicate[index] );
     subject.array.duplicate[rand]++;
     return str;
+  }
+
+  roll( who, qualification ){
+    let stage = who.data.qualification[qualification].stage;
+    let sub_stage = who.data.qualification[qualification].sub_stage;
+    let percentage = who.data.board.table.covering[stage][sub_stage];
+
+    let rand = Math.random();
+    return rand < percentage;
   }
 }
