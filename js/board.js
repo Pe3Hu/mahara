@@ -7,7 +7,10 @@ class board{
       cols: 7,
       rows: 19,
       cluster_size_max: 6,
-      cluster_size_min: 3
+      cluster_size_min: 3,
+      base_capabilitys: 10,
+      base_sub_tasks: 10,
+      base_tasks: 10
     };
     this.var = {
       index: {
@@ -18,6 +21,8 @@ class board{
         region_level: 0,
         river_mouth_parquet: -1,
         capability: 0,
+        task: 0,
+        sub_task: 0,
         forgotten: 0
       },
       current: {
@@ -41,6 +46,8 @@ class board{
       region: [],
       region_index_shift: [ 0 ],
       capability: [],
+      task: [],
+      sub_task: [],
       forgotten: []
     };
     this.data = {
@@ -81,6 +88,7 @@ class board{
     this.init_hubs();
     this.init_castles();
     this.init_capabilitys();
+    this.init_tasks();
     this.init_forgottens();
     this.init_paint();
     this.init_covering_table();
@@ -404,8 +412,6 @@ class board{
 
     sorted.unshift( first );
     this.table.covering = sorted;
-
-    console.log( this.table.covering )
   }
 
   fill_in_covering_table( parquet_index, r, c_index ){
@@ -1022,11 +1028,23 @@ class board{
   }
 
   init_capabilitys(){
-    let base_capabilitys = 6;
-
-    for( let i = 0; i < base_capabilitys; i++ ){
+    //
+    for( let i = 0; i < this.const.base_capabilitys; i++ ){
       this.array.capability.push( new capability( this.var.index.capability, this ) );
       this.var.index.capability++;
+    }
+  }
+
+  init_tasks(){
+    //
+    for( let i = 0; i < this.const.base_tasks; i++ ){
+      this.array.task.push( new task( this.var.index.task, this ) );
+      this.var.index.task++;
+    }
+
+    for( let i = 0; i < this.const.base_sub_tasks; i++ ){
+      this.array.sub_task.push( new task( this.var.index.sub_task, this ) );
+      this.var.index.sub_task++;
     }
   }
 
@@ -1430,8 +1448,13 @@ class board{
               shares.push( i );
           }
 
-          let rand = Math.floor( Math.random() * shares.length );
-          next_index = shares[rand];
+
+          if( shares.length > 0 ){
+            let rand = Math.floor( Math.random() * shares.length );
+            next_index = shares[rand];
+          }
+          else
+            return shares.length;
         }
       }
 
@@ -1521,8 +1544,10 @@ class board{
       this.data.second.current++;
       //console.log( 'clock', this.data.second.current )
 
-      for( let forgotten of this.array.forgotten )
-        forgotten.start_capability();
+      for( let forgotten of this.array.forgotten ){
+          forgotten.data.geometry.attributes.position.needsUpdate = true;
+          forgotten.start_capability();
+      }
     }
   }
 }

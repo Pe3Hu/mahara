@@ -21,21 +21,24 @@ class capability{
   set_description(){
     switch ( this.const.index ) {
       case 0:
-        this.data.name = 'preview';
+        this.data.name = 'select task';
         break;
       case 1:
-        this.data.name = 'primary inspection';
+        this.data.name = 'preview';
         break;
       case 2:
-        this.data.name = 'common inspection';
+        this.data.name = 'primary inspection';
         break;
       case 3:
-        this.data.name = 'passage through the gate';
+        this.data.name = 'common inspection';
         break;
       case 4:
-        this.data.name = 'primary mining';
+        this.data.name = 'passage through the new gate';
         break;
       case 5:
+        this.data.name = 'primary mining';
+        break;
+      case 6:
         this.data.name = 'common mining';
         break;
     }
@@ -46,6 +49,23 @@ class capability{
     //console.log( who, where )
 
     switch ( this.data.name ) {
+      case 'select task':
+        if( who.flag.newborn ){
+          let predispositions = [];
+
+          for( let name in who.data.predisposition )
+            for( let i = 0; i < who.data.predisposition[name].weight; i++ )
+              predispositions.push( name )
+
+          let rand = Math.floor( Math.random() * predispositions.length );
+          let predisposition = predispositions[rand];
+          console.log( predisposition )
+
+          //who.var.current.task
+
+          who.flag.newborn = false;
+        }
+        break;
       case 'preview':
         str = this.find_shatter( who, where );
         who.data.shatters['somewhere'][where.const.index.toString()] = [ str ];
@@ -70,9 +90,27 @@ class capability{
             who.data.duplicates['somewhere'].push( str );
 
           who.add_successes( 'mapping' );
-          break;
         }
-      case 'passage through the gate':
+        break;
+      case 'passage through the new gate':
+        let destinations = [];
+        let parquet = who.data.board.array.parquet[who.var.current.parquet];
+        let gate_keys = Object.keys( parquet.data.neighbours );
+        let parquet_keys = Object.keys( who.data.shatters['somewhere'] );
+
+        for( let gate of who.array.gate )
+          if( gate_keys.includes( gate ) )
+            if( !parquet_keys.includes( parquet.data.neighbours[gate].toString() ) )
+              destinations.push( parquet.data.neighbours[gate] );
+
+        let rand = Math.floor( Math.random() * destinations.length );
+        who.var.current.parquet = destinations[rand];
+
+        let center = who.data.board.array.parquet[who.var.current.parquet].const.center;
+
+        who.data.circle.position.x = center.x;
+        who.data.circle.position.y = center.y;
+        who.data.circle.position.z = center.z;
         break;
       case 'primary mining':
       case 'common mining':

@@ -5,16 +5,20 @@ class forgotten{
       qualification_base: 6
     };
     this.flag = {
-      wait: false
+      wait: false,
+      newborn: true
     };
     this.var = {
       current: {
         parquet: awakening,
-        capability: null
+        capability: null,
+        task: null,
+        details: {}
       }
     };
     this.array = {
       capability: [ 0, 1, 2 ],
+      sub_task: [],
       to_do_list: [],
       gate: []
     };
@@ -31,13 +35,15 @@ class forgotten{
       prioritys: {
         'mapping': {
           value: 10,
+          scale: 1,
           subs: {
             'old': 0,
             'new': 10
           },
         },
         'mining': {
-          value: 0,
+          value: 10,
+          scale: 0,
           subs: {
           },
         }
@@ -55,7 +61,8 @@ class forgotten{
           successes: 0,
           next_stage: this.const.qualification_base
         }
-      }
+      },
+      predisposition: {}
     };
 
     this.init();
@@ -63,20 +70,80 @@ class forgotten{
 
   init(){
     this.init_ciclre();
+    this.init_predispositions();
   }
 
   init_ciclre(){
     let r = CONST_A / 2;
-    const geometry = new THREE.CircleGeometry( r, 10 );
+    this.data.geometry = new THREE.CircleGeometry( r, 10 );
     const material = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide } );
-    const circle = new THREE.Mesh( geometry, material );
+    this.data.circle = new THREE.Mesh( this.data.geometry, material );
     let center = this.data.board.array.parquet[this.var.current.parquet].const.center;
 
-    circle.position.x = center.x;
-    circle.position.y = center.y;
-    circle.position.z = center.z;
+    this.data.circle.position.x = center.x;
+    this.data.circle.position.y = center.y;
+    this.data.circle.position.z = center.z;
 
-    this.data.board.data.scene.add( circle );
+    this.data.board.data.scene.add( this.data.circle );
+  }
+
+  init_predispositions(){
+    let predisposition_names = [ 'scout', 'collector', 'dealer', 'mercenary' ];
+    let duplicates = [ 20, 0, 0, 0 ];// [ 20, 20, 12, 8 ];
+    let min_predisposition = 0;
+    let max_predisposition = 8;
+    let total_predisposition = 16;
+    let current_predisposition = 0;
+    let predispositions = [];
+
+    for( let i = 0; i < predisposition_names.length; i++ ){
+      predispositions.push( min_predisposition );
+      current_predisposition += min_predisposition;
+    }
+
+    while( current_predisposition < total_predisposition ){
+      let lots = [];
+
+      for( let i = 0; i < predispositions.length; i++ )
+        if( predispositions[i] <= max_predisposition )
+          for( let j = 0; j < duplicates[i] - predispositions[i]; j++ )
+            lots.push( i );
+
+      let rand = Math.floor( Math.random() * lots.length );
+      predispositions[lots[rand]]++;
+      current_predisposition++;
+    }
+
+    for( let i = 0; i < predisposition_names.length; i++ )
+      this.data.predisposition[predisposition_names[i]] = {
+        weight: predispositions[i],
+        tasks: []
+      }
+
+    for( let name in this.data.predisposition )
+      switch ( name ) {
+        case 'dealer':
+        case 'mercenary':
+          this.data.predisposition[name].tasks.push( 0, {
+            'performance criterion': 'get X raw materials',
+            'raw': 'any',
+            'X': 8
+          } );
+          break;
+        case 'collector':
+          this.data.predisposition[name].tasks.push( 1, {
+            'performance criterion': 'get X grade of qualification',
+            'qualification': 'mining',
+            'X': 1
+          } );
+          break;
+        case 'scout':
+          this.data.predisposition[name].tasks.push( 2, {
+            'performance criterion': 'find X not wasteland parquets',
+            'X': 4
+          } );
+          break;
+      }
   }
 
   fill_to_do_list(){
@@ -85,14 +152,18 @@ class forgotten{
     let index = keys.indexOf( this.var.current.parquet.toString() );
 
     if( index == -1 ){
-      this.add_to_list( 0 );
       this.add_to_list( 1 );
-      this.add_to_list( 1 );
-      this.add_to_list( 1 );
-      this.add_to_list( 1 );
+
+      if( this.flag.newborn ){
+        this.add_to_list( 2 );
+        this.add_to_list( 2 );
+        this.add_to_list( 2 );
+        this.add_to_list( 2 );
+        this.add_to_list( 0 );
+      }
     }
     else{
-      this.follow_priorities();
+      //this.follow_priorities();
       this.add_to_list( -1 );
     }
     /*switch ( awakening_parquet.data.terrain.name ){
@@ -121,6 +192,17 @@ class forgotten{
 
   add_to_list( capability ){
     this.array.to_do_list.push( capability );
+  }
+
+  add_sub_task( sub_task, details ){
+    this.array.sub_task.push( sub_task );
+    this.array.details.push( details );
+  }
+
+  add_task( task, details ){
+    this.var.current.task = task;
+    this.var.current.details = details;
+    this.data.board.array.task[task].start_execution( details );
   }
 
   start_capability(){
@@ -160,7 +242,7 @@ class forgotten{
     let keys = Object.keys( this.data.prioritys )
 
     for( let priority of keys )
-      for( let i = 0; i < this.data.prioritys[priority].value; i++ )
+      for( let i = 0; i < this.data.prioritys[priority].value * this.data.prioritys[priority].scale; i++ )
         prioritys.push( priority );
 
     let rand = Math.round( Math.random() * prioritys.length );
@@ -179,15 +261,15 @@ class forgotten{
 
         switch ( sub_priority ) {
           case 'old':
-            this.add_to_list( 2 );
+            this.add_to_list( 4 );
             break;
           case 'new':
-            this.add_to_list( 3 );
+            this.add_to_list( 4 );
             break;
         }
         break;
       case 'mining':
-        this.add_to_list( 5 );
+        this.add_to_list( 6 );
         break;
     }
   }
@@ -234,5 +316,9 @@ class forgotten{
         this.array.gate.push( gates[rand] );
       }
     }
+  }
+
+  check_qualification(){
+
   }
 }
