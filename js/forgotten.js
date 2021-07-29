@@ -19,6 +19,7 @@ class forgotten{
     this.array = {
       capability: [ 0, 1, 2 ],
       sub_task: [],
+      details: [],
       to_do_list: [],
       gate: []
     };
@@ -117,6 +118,7 @@ class forgotten{
     for( let i = 0; i < predisposition_names.length; i++ )
       this.data.predisposition[predisposition_names[i]] = {
         weight: predispositions[i],
+        scale: 1,
         tasks: []
       }
 
@@ -124,23 +126,37 @@ class forgotten{
       switch ( name ) {
         case 'dealer':
         case 'mercenary':
-          this.data.predisposition[name].tasks.push( 0, {
-            'performance criterion': 'get X raw materials',
-            'raw': 'any',
-            'X': 8
+          this.data.predisposition[name].tasks.push( {
+            index: 0,
+            weight: 1,
+            scale: 1,
+            details: {
+              'performance criterion': 'get X raw materials',
+              'raw': 'any',
+              'X': 8
+            }
           } );
           break;
         case 'collector':
-          this.data.predisposition[name].tasks.push( 1, {
-            'performance criterion': 'get X grade of qualification',
-            'qualification': 'mining',
-            'X': 1
+          this.data.predisposition[name].tasks.push( {
+            index: 1,
+            weight: 1,
+            scale: 1,
+            details: { 'performance criterion': 'get X grade of qualification',
+              'qualification': 'mining',
+              'X': 1
+            }
           } );
           break;
         case 'scout':
-          this.data.predisposition[name].tasks.push( 2, {
-            'performance criterion': 'find X not wasteland parquets',
-            'X': 4
+          this.data.predisposition[name].tasks.push( {
+            index: 2,
+            weight: 1,
+            scale: 1,
+            details: {
+              'performance criterion': 'find X not wasteland parquets',
+              'X': 4
+            }
           } );
           break;
       }
@@ -160,6 +176,9 @@ class forgotten{
         this.add_to_list( 2 );
         this.add_to_list( 2 );
         this.add_to_list( 0 );
+      }
+      else {
+        this.array.sub_task( 1, {} )
       }
     }
     else{
@@ -202,7 +221,7 @@ class forgotten{
   add_task( task, details ){
     this.var.current.task = task;
     this.var.current.details = details;
-    this.data.board.array.task[task].start_execution( details );
+    this.data.board.array.task[task].start_execution( this, details );
   }
 
   start_capability(){

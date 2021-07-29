@@ -54,14 +54,20 @@ class capability{
           let predispositions = [];
 
           for( let name in who.data.predisposition )
-            for( let i = 0; i < who.data.predisposition[name].weight; i++ )
+            for( let i = 0; i < who.data.predisposition[name].weight * who.data.predisposition[name].scale; i++ )
               predispositions.push( name )
 
           let rand = Math.floor( Math.random() * predispositions.length );
           let predisposition = predispositions[rand];
           console.log( predisposition )
 
-          //who.var.current.task
+          let tasks = [];
+          for( let task of who.data.predisposition[predisposition].tasks )
+            for( let i = 0; i < task.weight * task.scale; i++ )
+              tasks.push( task );
+
+          rand = Math.floor( Math.random() * tasks.length );
+          who.add_task( tasks[rand].index, tasks[rand].details );
 
           who.flag.newborn = false;
         }
@@ -114,6 +120,8 @@ class capability{
         break;
       case 'primary mining':
       case 'common mining':
+        break;
+      case 'check sub_task completion':
         break;
     }
 

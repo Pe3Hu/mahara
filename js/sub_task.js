@@ -18,16 +18,16 @@ class sub_task{
   set_description(){
     switch ( this.const.index ) {
       case 0:
-        this.data.name = 'climb the qualification sub_stage';
-        break;
-      case 1:
-        this.data.name = 'find a new parquet';
-        break;
-      case 2:
         this.data.name = 'get raw materials';
         break;
+      case 1:
+        this.data.name = 'climb the qualification sub_stage';
+        break;
+      case 2:
+        this.data.name = 'find a certain type of new parquet';
+        break;
       case 3:
-        this.data.name = 'find a certain type of parquet';
+        this.data.name = '';
         break;
       case 4:
         this.data.name = '';

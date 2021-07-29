@@ -87,13 +87,12 @@ class board{
     this.init_terrains();
     this.init_hubs();
     this.init_castles();
-    this.init_capabilitys();
+    /*this.init_capabilitys();
     this.init_tasks();
     this.init_forgottens();
+    this.init_covering_table();*/
     this.init_paint();
-    this.init_covering_table();
-
-    this.start_forgottens();
+    this.make_road_markings();
   }
 
   init_main(){
@@ -1066,11 +1065,6 @@ class board{
     this.paint_regions();
   }
 
-  start_forgottens(){
-    for( let forgotten of this.array.forgotten )
-      forgotten.fill_to_do_list();
-  }
-
   merging_small_clusters(){
     let min_neighbours = this.const.cluster_size_max;
     let max_neighbours = 0;
@@ -1549,5 +1543,62 @@ class board{
           forgotten.start_capability();
       }
     }
+  }
+
+  make_road_markings(){
+    let parquets = [];
+
+    for( let parquet of this.array.parquet )
+      if( parquet.data.terrain.name == 'river' )
+        parquets.push( parquet.const.index.toString() );
+
+    let list = {};
+
+    for( let parquet of parquets ){
+      let keys = Object.keys( list );
+      if( !keys.includes( parquet ) );
+        list[parquet] = [];
+
+      for( let gate in this.array.parquet[parquet].data.neighbours ){
+        let neighbour = this.array.parquet[parquet].data.neighbours[gate].toString();
+
+        if( keys.includes( neighbour ) ){
+          list[parquet].push( neighbour );
+          list[neighbour].push( parquet );
+        }
+      }
+
+    }
+    console.log( parquets )
+    console.log( list )
+
+    let start_index = 5;
+    let end_index = parquets.length - 1;
+    let start_parquet = parquets[start_index];
+    let end_parquet = parquets[end_index];
+    parquets.splice( start_index, 1 );
+    let dists = [ [ start_parquet ] ];
+    let counter = 0;
+    let stopper = 100;
+
+    while( parquets.length > 0 && counter < stopper ){
+      let neighbours = [];
+
+      for( let current_parquet of dists[dists.length - 1] )
+        for( let neighbour of list[current_parquet] )
+          if( parquets.includes( neighbour ) ){
+            neighbours.push( neighbour );
+
+            let index = parquets.indexOf( neighbour )
+            parquets.splice( index, 1 );
+          }
+
+      dists.push( neighbours );
+      if( neighbours.includes( end_parquet ) )
+        counter = stopper;
+      counter++;
+    }
+
+    //console.log( start_parquet, end_parquet, dists )
   }
 }

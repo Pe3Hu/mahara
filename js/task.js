@@ -38,13 +38,20 @@ class task {
     }
   }
 
-  start_execution( details ){
+  start_execution( who, details ){
     switch ( this.data.name ) {
       case 'earn initial capital':
         break;
       case 'improve qualification':
         break;
       case 'explore the map':
+        for( let i = 0; i < details['X']; i++ )
+          who.add_sub_task( 2, {
+            'selection criterion': {
+              'yes': 'any',
+              'no': 'wasteland'
+            }
+          } );
         break;
     }
 
