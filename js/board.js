@@ -48,7 +48,8 @@ class board{
       capability: [],
       task: [],
       sub_task: [],
-      forgotten: []
+      forgotten: [],
+      river: []
     };
     this.data = {
       renderer: null,
@@ -83,15 +84,16 @@ class board{
     this.init_geometrys();
     this.init_gates();
     this.init_first_regions_level();
-    this.init_river();
     this.init_terrains();
+    this.init_river();
     this.init_hubs();
     this.init_castles();
     /*this.init_capabilitys();
     this.init_tasks();
-    this.init_forgottens();
     this.init_covering_table();*/
     this.init_paint();
+
+    this.init_forgottens();
     this.make_road_markings();
   }
 
@@ -832,7 +834,7 @@ class board{
 
     let rand = Math.floor( Math.random() * options.length );
     this.var.current.river = options[rand];
-    this.array.parquet[this.var.current.river].set_type( 2 );
+    this.add_river_parquet();
     let river_mouth = new THREE.Vector3(
       -this.array.parquet[this.var.current.river].const.center.x,
       -this.array.parquet[this.var.current.river].const.center.y,
@@ -857,12 +859,12 @@ class board{
     let min_d = ( this.const.a + this.const.b ) * CONST_A;
     let counter = 0;
     let options_length = -1;
+
     while( !this.array.parquet[this.var.index.river_mouth_parquet].flag.river
             && counter < this.array.parquet.length
             && options_length != 0 ){
               options_length = this.next_bend();
               counter++;
-              //console.log( counter, this.array.parquet[this.var.current.river].const.index )
             }
   }
 
@@ -1061,8 +1063,7 @@ class board{
 
   init_paint(){
     //
-    this.var.current.paint_level = this.var.index.region_level;
-    this.paint_regions();
+    this.shift_paint_layer( 0 );
   }
 
   merging_small_clusters(){
@@ -1343,43 +1344,51 @@ class board{
 
   paint_regions(){
     let regions;
-    let level;
 
     switch ( this.var.current.paint_layer ) {
       case 0:
         regions = this.array.region[this.var.current.paint_level];
-        level = this.var.current.paint_level ;
         break;
       case 1:
         regions = this.array.region[0];
-        level = -1;
         break;
     }
 
     for( let region of regions ){
       let hue_index = ( region.const.index - this.array.region_index_shift[this.var.current.paint_level] + regions.length ) % regions.length;
-      region.paint( hue_index, level );
-    }
-  }
-
-  paint_object(){
-    let regions = this.array.region[0];
-    let level = -1;
-
-    for( let region of regions ){
-      let hue_index = ( region.const.index - this.array.region_index_shift[this.var.current.paint_level] + regions.length ) % regions.length;
-      region.paint( hue_index, level );
+      region.paint( hue_index, this.var.current.paint_level );
     }
   }
 
   shift_paint_level( shift ){
-    this.var.current.paint_level = ( shift + this.var.current.paint_level + this.array.region.length ) % this.array.region.length;
+    var levels;
+
+    switch ( this.var.current.paint_layer ) {
+      case 0:
+        levels = this.array.region.length;
+        break;
+      case 1:
+        levels = 11;
+        break;
+    }
+
+    this.var.current.paint_level = ( shift + this.var.current.paint_level + levels ) % levels;
     this.paint_regions();
   }
 
   shift_paint_layer( shift ){
     let layers = 2;
     this.var.current.paint_layer = ( shift + this.var.current.paint_layer + layers ) % layers;
+
+    switch ( this.var.current.paint_layer ) {
+      case 0:
+        this.var.current.paint_level = 4;
+        break;
+      case 1:
+        this.var.current.paint_level = 10;
+        break;
+    }
+
     this.paint_regions();
   }
 
@@ -1389,6 +1398,7 @@ class board{
 
     for( let key in current_parquet.data.neighbours )
       if( this.array.parquet[current_parquet.data.neighbours[key]].data.terrain.name != 'river' ){
+
         let counter = 0;
         let neighbour = this.array.parquet[current_parquet.data.neighbours[key]];
 
@@ -1442,7 +1452,6 @@ class board{
               shares.push( i );
           }
 
-
           if( shares.length > 0 ){
             let rand = Math.floor( Math.random() * shares.length );
             next_index = shares[rand];
@@ -1455,11 +1464,25 @@ class board{
       if( neighbours.length == 1 )
         next_index = 0;
 
+
       this.var.current.river = neighbours[next_index];
-      this.array.parquet[this.var.current.river].set_type( 2 );
+
+      if( this.array.parquet[neighbours[next_index]].data.terrain.name == 'borderland' &&
+          this.array.river.length > Math.min( this.const.cols, this.const.rows ) ){
+
+        this.add_river_parquet();
+        return 0;
+      }
+
+      this.add_river_parquet();
     }
 
     return neighbours.length;
+  }
+
+  add_river_parquet(){
+    this.array.parquet[this.var.current.river].set_type( 2 );
+    this.array.river.push( this.var.current.river );
   }
 
   set_zones(){
@@ -1525,7 +1548,8 @@ class board{
 			//console.log( Math.floor( intersect.faceIndex / 4 ) )
 		}
 
-    this.second_has_passed();
+    //this.second_has_passed();
+    this.move();
 
     this.data.renderer.render( this.data.scene, this.data.camera );
   }
@@ -1545,60 +1569,109 @@ class board{
     }
   }
 
+  move(){
+    for( let forgotten of this.array.forgotten ){
+      forgotten.move_to_next_parque();
+    }
+  }
+
   make_road_markings(){
     let parquets = [];
 
     for( let parquet of this.array.parquet )
       if( parquet.data.terrain.name == 'river' )
-        parquets.push( parquet.const.index.toString() );
+        parquets.push( parquet.const.index );
 
     let list = {};
 
     for( let parquet of parquets ){
       let keys = Object.keys( list );
-      if( !keys.includes( parquet ) );
+
+      if( !keys.includes( parquet.toString() ) );
         list[parquet] = [];
 
       for( let gate in this.array.parquet[parquet].data.neighbours ){
-        let neighbour = this.array.parquet[parquet].data.neighbours[gate].toString();
+        let neighbour = this.array.parquet[parquet].data.neighbours[gate];
 
-        if( keys.includes( neighbour ) ){
+        if( keys.includes( neighbour.toString() ) ){
           list[parquet].push( neighbour );
           list[neighbour].push( parquet );
         }
       }
-
     }
-    console.log( parquets )
-    console.log( list )
+
+    /*console.log( parquets )
+    console.log( this.array.river )
+    console.log( list )*/
 
     let start_index = 5;
-    let end_index = parquets.length - 1;
+    let end_index = 0;
     let start_parquet = parquets[start_index];
     let end_parquet = parquets[end_index];
-    parquets.splice( start_index, 1 );
+    //parquets.splice( start_index, 1 );
     let dists = [ [ start_parquet ] ];
     let counter = 0;
     let stopper = 100;
+    let flag = true;
 
-    while( parquets.length > 0 && counter < stopper ){
-      let neighbours = [];
+    let far_aways = {};
 
-      for( let current_parquet of dists[dists.length - 1] )
-        for( let neighbour of list[current_parquet] )
-          if( parquets.includes( neighbour ) ){
-            neighbours.push( neighbour );
+    for( let parquet of parquets )
+      far_aways[parquet] = {
+        "wave": -1,
+        "parent": -1
+      };
 
-            let index = parquets.indexOf( neighbour )
-            parquets.splice( index, 1 );
+    let last_wave = [ start_parquet ];
+    let wave = 0;
+    console.log(far_aways)
+    //1192 error
+    //1623 error
+    far_aways[start_parquet]["wave"] = wave;
+    far_aways[start_parquet]["parent"] = start_parquet;
+
+    while( counter < stopper && flag ){
+      wave++;
+      let new_wave = [];
+
+      for( let current_parquet of last_wave )
+        for( let neighbour of list[current_parquet] ){
+          if( far_aways[neighbour]["wave"] == -1){
+
+            far_aways[neighbour]["wave"] = wave;
+            far_aways[neighbour]["parent"] = current_parquet;
+            new_wave.push( neighbour );
           }
 
-      dists.push( neighbours );
-      if( neighbours.includes( end_parquet ) )
-        counter = stopper;
+          if( neighbour == end_parquet )
+            flag = false;
+
+        }
+
+      last_wave = new_wave;
       counter++;
     }
 
-    //console.log( start_parquet, end_parquet, dists )
+    let left_traces = [ end_parquet ];
+    counter = 0;
+    flag = true;
+
+    while( left_traces.length < parquets.length && counter < stopper && flag ){
+      let last_trace = far_aways[left_traces[left_traces.length - 1]]["parent"];
+      //if( last_trace )
+      left_traces.push( last_trace );
+
+      if( last_trace == far_aways[left_traces[left_traces.length - 1]]["parent"] )
+        flag = false;
+      counter++;
+    }
+
+    left_traces = left_traces.reverse()
+    console.log( start_parquet, end_parquet, left_traces );
+    this.array.forgotten[0].var.current.parquet = start_parquet;
+    this.array.forgotten[0].set_circle( this.array.parquet[start_parquet].const.center.clone() );
+    this.array.forgotten[0].array.route = left_traces;
+    this.array.forgotten[0].flag.move = true;
+    this.array.forgotten[0].select_next_parquet()
   }
 }

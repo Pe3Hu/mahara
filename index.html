@@ -4,9 +4,39 @@
 		<title>swarm</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+		body {
+				margin: 0;
+				background-color: #000;
+				color: #fff;
+				font-family: Monospace;
+				font-size: 13px;
+				line-height: 24px;
+				overscroll-behavior: none;
+			}
+			a {
+				color: #f00;
+			}
+			#info {
+				position: absolute;
+				top: 0px;
+				width: 100%;
+				padding: 10px;
+				box-sizing: border-box;
+				text-align: center;
+				-moz-user-select: none;
+				-webkit-user-select: none;
+				-ms-user-select: none;
+				user-select: none;
+				pointer-events: none;
+				z-index: 1;
+			}
+		</style>
 	</head>
 <body>
 		<div id="container"></div>
+				<div id="info">a/d - change level<br/>
+				z/c - change layer</div>
     <script src="libs/three.min.js"></script>
     <script src="libs/OrbitControls.js"></script>
     <script src="libs/Detector.js"></script>

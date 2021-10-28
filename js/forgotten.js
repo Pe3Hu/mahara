@@ -6,22 +6,28 @@ class forgotten{
     };
     this.flag = {
       wait: false,
-      newborn: true
+      newborn: true,
+      move: false
     };
     this.var = {
       current: {
         parquet: awakening,
         capability: null,
         task: null,
-        details: {}
-      }
+        details: {},
+      },
+      index: {
+        route: -1
+      },
+      next_parquet: null
     };
     this.array = {
       capability: [ 0, 1, 2 ],
       sub_task: [],
       details: [],
       to_do_list: [],
-      gate: []
+      gate: [],
+      route: []
     };
     this.data = {
       board: board,
@@ -65,27 +71,33 @@ class forgotten{
       },
       predisposition: {}
     };
+    this.characteristics = {
+      walk: {
+        period: 0.5,
+        velocity: new THREE.Vector3( 0, 0, 0 )
+      }
+    };
+    this.scene = {
+      circle: null
+    }
 
     this.init();
   }
 
   init(){
     this.init_ciclre();
-    this.init_predispositions();
+    //this.init_predispositions();
   }
 
   init_ciclre(){
     let r = CONST_A / 2;
-    this.data.geometry = new THREE.CircleGeometry( r, 10 );
+    let geometry = new THREE.CircleGeometry( r, 10 );
     const material = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide } );
-    this.data.circle = new THREE.Mesh( this.data.geometry, material );
+    this.scene.circle = new THREE.Mesh( geometry, material );
     let center = this.data.board.array.parquet[this.var.current.parquet].const.center;
+    this.set_circle( center );
 
-    this.data.circle.position.x = center.x;
-    this.data.circle.position.y = center.y;
-    this.data.circle.position.z = center.z;
-
-    this.data.board.data.scene.add( this.data.circle );
+    this.data.board.data.scene.add( this.scene.circle );
   }
 
   init_predispositions(){
@@ -339,5 +351,46 @@ class forgotten{
 
   check_qualification(){
 
+  }
+
+  select_next_parquet(){
+    if( this.flag.move ){
+      if( this.var.index.route == -1 )
+        this.var.index.route = 0;
+
+      this.var.current.parquet = this.array.route[this.var.index.route];
+
+      if( this.var.index.route == this.array.route.length - 1 )
+        this.flag.move = false;
+      else
+        this.start_move_to_next_parquet();
+    }
+  }
+
+  start_move_to_next_parquet(){
+    this.var.index.route++;
+    this.var.next_parquet = this.array.route[this.var.index.route];
+    this.characteristics.walk.velocity = this.data.board.array.parquet[this.var.next_parquet].const.center.clone();
+    this.characteristics.walk.velocity.sub( this.data.board.array.parquet[this.var.current.parquet].const.center );
+    this.characteristics.walk.velocity.divideScalar( FPS * this.characteristics.walk.period );
+
+  }
+
+  move_to_next_parque(){
+    if( this.flag.move ){
+      this.scene.circle.position.add( this.characteristics.walk.velocity );
+      let d = this.scene.circle.position.distanceTo( this.data.board.array.parquet[this.var.next_parquet].const.center );
+      let l = this.characteristics.walk.velocity.length();
+      if( d <= l ){
+        this.set_circle( this.data.board.array.parquet[this.var.next_parquet].const.center.clone() );
+        this.select_next_parquet();
+      }
+    }
+  }
+
+  set_circle( vec ){
+    this.scene.circle.position.x = vec.x;
+    this.scene.circle.position.y = vec.y;
+    this.scene.circle.position.z = vec.z;
   }
 }

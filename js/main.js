@@ -1,4 +1,5 @@
 const CONST_A = 32;
+const FPS = 60
 const INFINITY = 999999;
 
 let MAX_DIST;
@@ -17,8 +18,10 @@ function init(){
 }
 
 function animate() {
+    /*setTimeout( function() {
+        requestAnimationFrame( animate );
+    }, 1000 / 60 );*/
   requestAnimationFrame( animate );
-
   GAME_BOARD.render();
   GAME_BOARD.data.stats.update();
 }
